@@ -1,0 +1,50 @@
+# configs/pipeline.yaml
+defaults:
+  - model: llama_cpp
+  - llm: settings
+  - embed: settings
+  - rerank: settings
+  - eval/metrics
+  - _self_
+
+stages:
+  - check_models
+  - check_data
+  - run_rag
+  - evaluate
+
+modules:
+  check_models:
+    _target_: src.rag.check_models.CheckModels
+    embed_model: ${embed.embedding_model}
+    llm_repo: ${llm.llm_repo}
+    llm_filename: ${llm.llm_filename}
+    rerank_model: ${rerank.model_name}
+
+  check_data:
+    _target_: src.rag.index_manager.IndexManager
+    embed_settings: ${embed}
+    parquet_path: data/raw/squad_train.parquet
+
+  run_rag:
+    _target_: src.rag.runner.RagRunner
+    input_path: data/eval/augmented_questions.jsonl
+    output_path: outputs/results_rag.jsonl
+    retrieval_type: dense
+    use_rerank: true
+    top_k: 8
+    alpha: 0.5
+    max_questions: 5
+    index_dir: null
+    embedding_model: ${embed.embedding_model}
+    model_cfg: ${model}
+    save_results: false
+
+  evaluate:
+    _target_: src.eval.evaluator.Evaluator
+    results_path: None
+    output_path: outputs/eval_metrics.jsonl
+    metrics: ${eval}
+    embedding_model: ${embed.embedding_model}
+    save_metrics: true
+

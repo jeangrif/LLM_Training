@@ -1,0 +1,6 @@
+# configs/eval/metrics.yaml
+exact_match: src.eval.metrics.accuracy.exact_match
+semantic_sim: src.eval.metrics.semantic_similarity.semantic_similarity
+lexical_overlap: src.eval.metrics.lexical_overlap.lexical_overlap
+faithfulness: src.eval.metrics.faithfulness.faithfulness_score
+robustness: src.eval.metrics.robustness.robustness_by_degree

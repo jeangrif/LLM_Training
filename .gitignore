@@ -1,0 +1,35 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+# --- Ignorer les environnements et fichiers temporaires ---
+.venv/
+.env
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+*.log
+uv.lock
+
+# --- Ignorer les gros dossiers non versionnés ---
+data/
+index/
+logs/
+models/
+outputs/
+ui/
+utils/
+
+# --- Garder uniquement ce qu'on veut suivre ---
+!/configs/
+!/src/
+!/libs/
+!/pyproject.toml
