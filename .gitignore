@@ -19,17 +19,21 @@ __pycache__/
 *.log
 uv.lock
 
-# --- Ignorer les gros dossiers non versionnés ---
-data/
-index/
-logs/
-models/
-outputs/
-ui/
-utils/
+# --- Ignorer le contenu des gros dossiers, mais garder leur structure ---
+data/*
+index/*
+logs/*
+models/*
+outputs/*
 
-# --- Garder uniquement ce qu'on veut suivre ---
+# Garder les fichiers .gitkeep dans ces dossiers
+!data/.gitkeep
+!index/.gitkeep
+!logs/.gitkeep
+!models/.gitkeep
+!outputs/.gitkeep
+
+# --- Garder les dossiers principaux ---
 !/configs/
 !/src/
-!/libs/
 !/pyproject.toml
