@@ -6,7 +6,7 @@ Robust version — 2-stage pipeline:
 1. Generate many paraphrase candidates
 2. Select 5 progressive levels by semantic similarity
 """
-
+import random
 import json
 from pathlib import Path
 from tqdm import tqdm
@@ -92,6 +92,8 @@ def generate_paraphrases():
         lines = lines[cfg["offset"]:]
     if cfg["limit"]:
         lines = lines[:cfg["limit"]]
+    random.seed(42)  # for reproducibility
+    random.shuffle(lines)
     print(f"✅ Selected {len(lines)} examples (from {total})")
 
     # Determine device
