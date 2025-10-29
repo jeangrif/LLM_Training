@@ -116,3 +116,13 @@ All parameters are defined in the configs/ directory.The main file configs/pipel
 *   **evaluate** → computes and saves RAG performance metrics
 
 You can modify any parameter (model paths, chunk size, overlap, top\_k, etc.) directly in configs/pipeline.yaml before running:python -m src.main
+
+## 🧭 Next Steps — RAG Pipeline Improvements
+
+| # | Category | Task | Status |
+|:-:|-----------|-------|:------:|
+| **1** | 🗂️ **Improve folder structure** |  | ☐ |
+| **2** | ⚙️ **Improve config file** |  | ☐ |
+| **3** | 🧠 **Improve Rerank module** |  | ☐ |
+| **4** | 🧪 **Continue Optuna script** |  | ☐ |
+| **5** | 🧩 **Improve App.py** |  | ☐ |
