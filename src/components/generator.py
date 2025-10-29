@@ -1,4 +1,4 @@
-# src/rag/runner.py
+# src/rag/rag_runner.py
 from src.components.llm.llama_cpp import LlamaCppProvider
 
 

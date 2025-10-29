@@ -50,7 +50,7 @@ src/
 │
 ├── rag/
 │   ├── __init__.py
-│   └── pipeline.py                # RAG core: retrieve → (rerank) → generate for one query
+│   └── engine.py                # RAG core: retrieve → (rerank) → generate for one query
 │
 ├── scripts/                       # Ad-hoc utilities / one-off scripts (placeholder)
 │
@@ -58,7 +58,7 @@ src/
 │   ├── __init__.py
 │   ├── check_models.py            # Verify/download required models
 │   ├── index_manager.py           # Build/load search indexes
-│   ├── runner.py                  # Batch RAG run over dataset (uses rag.pipeline)
+│   ├── rag_runner.py                  # Batch RAG run over dataset (uses rag.pipeline)
 │   └── evaluator.py               # Compute evaluation metrics & persist results
 │
 ├── ui/

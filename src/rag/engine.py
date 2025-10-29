@@ -1,4 +1,4 @@
-# src/rag/pipeline.py
+# src/rag/engine.py
 # --- TO DO : Improve retriever handling, should be more structured not if/else cond ---
 from pathlib import Path
 from src.components.retriever.dense_faiss import FaissRetriever

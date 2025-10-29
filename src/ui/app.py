@@ -10,7 +10,7 @@ if str(ROOT) not in sys.path:
 import streamlit as st
 from hydra import compose, initialize
 from omegaconf import OmegaConf
-from src.rag.pipeline import RagPipeline
+from src.rag.engine import RagPipeline
 
 
 def main():

@@ -28,7 +28,7 @@ modules:
     parquet_path: data/raw/squad_train.parquet
 
   run_rag:
-    _target_: src.stages.runner.RagRunner
+    _target_: src.stages.rag_runner.RagRunner
     input_path: data/eval/augmented_questions.jsonl
     output_path: outputs/results_rag.jsonl
     retrieval_type: dense  # dense, hybrid or sparse

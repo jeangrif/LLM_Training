@@ -1,7 +1,7 @@
-# src/rag/runner.py
+# src/rag/rag_runner.py
 
 from pathlib import Path
-from src.rag.pipeline import RagPipeline
+from src.rag.engine import RagPipeline
 from src.utils.jsonl_helper import load_jsonl, save_jsonl  # si tu as ces helpers
 from tqdm import tqdm
 from src.utils.display import display_rag_pipeline_config
