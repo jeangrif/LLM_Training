@@ -63,8 +63,9 @@ CONFIG = {
     "text_field": "context",
     "raw_dir": Path("data/raw"),
 }
-
+```
 ### 🔹 Example – `scripts/generate_paraphrases.py`
+```bash
 
 CONFIG = {
     "model_name": "eugenesiow/bart-paraphrase",
