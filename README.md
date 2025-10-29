@@ -27,30 +27,7 @@ pip install -r requirements.txt
 ```
 ## 3️⃣ Project Structure
 
-```bash
-project_root/
-├── src/
-│   ├── main.py                # Hydra pipeline entrypoint
-│   └── rag/                   # Core RAG logic and modules
-│
-├── scripts/
-│   ├── ingest_hf_dataset.py   # Step 1 – Download & save HF dataset as Parquet
-│   ├── build_eval_base.py     # Step 2 – Extract base Q/A pairs for evaluation
-│   ├── generate_paraphrases.py # Step 3 – Create paraphrased question variations
-│   └── prepare_data.py        # Orchestrates all 3 data preparation steps
-│
-├── data/
-│   ├── raw/                   # Raw Parquet dataset
-│   └── eval/                  # Base + augmented evaluation sets
-│
-├── index/                #  FAISS / vector index
-│
-├── configs/
-│   └── pipeline.yaml          # Hydra config for the main pipeline
-│
-├── pyproject.toml / uv.lock   # Dependencies
-└── README.md
-```
+To Complete 
 ## 4️⃣ Data Preparation
 
 Before running the Hydra pipeline, you must first prepare the dataset.  
