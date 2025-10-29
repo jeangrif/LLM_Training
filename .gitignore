@@ -21,7 +21,7 @@ wheels/
 # --- Virtual environments ---
 .venv/
 .env/
-uv.lock
+!uv.lock
 
 # --- Ignore large data directories but keep structure ---
 data/*
