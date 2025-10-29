@@ -6,7 +6,7 @@ from src.components.retriever.sparse_retriever import BM25Retriever
 from src.components.retriever.hybrid_retriever import HybridRetriever
 from src.components.reranker import ReRanker
 from src.components.generator import RagGenerator
-from src.eval.metrics.latency import LatencyMeter
+from src.eval.performance.latency import LatencyMeter
 from hydra.core.hydra_config import HydraConfig
 import json
 
