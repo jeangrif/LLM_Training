@@ -25,9 +25,49 @@ If you prefer to install manually with pip:
 ```bash
 pip install -r requirements.txt
 ```
-## 3️⃣ Project Structure
+# 3️⃣ Project Structure Overview
 
-To Complete 
+```text
+src/
+├── components/                    # Core building blocks used by stages/pipeline
+│   ├── embed/                     # Embedding backends & helpers
+│   ├── llm/                       # LLM backends (base classes, llama.cpp, etc.)
+│   ├── retriever/                 # Retrievers (dense FAISS, BM25, hybrid…)
+│   ├── __init__.py
+│   ├── generator.py               # LLM selection/wrapper exposing a unified `generate()`
+│   └── reranker.py                # (Optional) re-ranking of retrieved passages
+│
+├── eval/                          # Evaluation logic (quality) & system performance
+│   ├── metrics/                   # Exact match, semantic similarity, lexical overlap, faithfulness…
+│   ├── performance/               # Latency meter / runtime KPIs
+│   └── __init__.py
+│
+├── optimization/
+│   └── optuna_search.py           # Optuna study for hyperparameter tuning
+│
+├── pipeline/
+│   └── orchestrator.py            # Orchestrates the dynamic stage flow (Hydra-driven)
+│
+├── rag/
+│   ├── __init__.py
+│   └── pipeline.py                # RAG core: retrieve → (rerank) → generate for one query
+│
+├── scripts/                       # Ad-hoc utilities / one-off scripts (placeholder)
+│
+├── stages/                        # Executable units run by the orchestrator (sequentially)
+│   ├── __init__.py
+│   ├── check_models.py            # Verify/download required models
+│   ├── index_manager.py           # Build/load search indexes
+│   ├── runner.py                  # Batch RAG run over dataset (uses rag.pipeline)
+│   └── evaluator.py               # Compute evaluation metrics & persist results
+│
+├── ui/
+│   └── app.py                     # Minimal app/CLI/UI to drive the pipeline
+│
+├── utils/
+│
+└── main.py                        #entry point                      
+```
 ## 4️⃣ Data Preparation
 
 Before running the Hydra pipeline, you must first prepare the dataset.  
