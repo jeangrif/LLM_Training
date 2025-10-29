@@ -2,9 +2,9 @@ import json
 import faiss
 from datetime import datetime
 from pathlib import Path
-from src.embed.chunking import make_chunks
-from src.embed.embeddings import generate_embeddings
-from src.embed.faiss_index import build_faiss_index
+from src.embed.chunking import TextChunker
+from src.embed.embeddings import Embedder
+from src.embed.faiss_index import FaissIndexBuilder
 from src.rag.setting import RagSettings
 
 
@@ -32,6 +32,16 @@ class IndexManager:
         self.faiss_path = self.index_dir / "faiss.index"
         self.docs_path = self.index_dir / "docs.jsonl"
         self.meta_path = self.index_dir / "metadata.json"
+        self.chunker = TextChunker(
+            chunk_size=self.chunk_size,
+            overlap=self.chunk_overlap,
+            text_field=self.embed_cfg.text_field
+        )
+        self.embedder = Embedder(
+            model_name=self.embedding_model,
+            batch_size=self.embed_cfg.embedding_batch_size
+        )
+        self.index_builder = FaissIndexBuilder()
 
     # ---------------------------------------------------------
     def run(self, **kwargs):
@@ -59,24 +69,19 @@ class IndexManager:
 
     def _build_from_parquet(self, parquet_path: Path):
         """Construit un nouvel index à partir du fichier parquet."""
-        chunks_path = make_chunks(
+        chunks_path = self.chunker.make_chunks(
             parquet_path=parquet_path,
             out_dir=self.index_dir,
-            text_field=self.embed_cfg.text_field,
-            chunk_size=self.chunk_size,
-            overlap=self.chunk_overlap,
         )
 
         # 2️⃣ Embeddings Generation
-        emb_path = generate_embeddings(
+        emb_path = self.embedder.encode_chunks(
             chunks_path=chunks_path,
-            model_name=self.embedding_model,
-            batch_size=self.embed_cfg.embedding_batch_size,
             out_dir=self.index_dir,
         )
 
         # 3️⃣ Construct Index FAISS
-        faiss_path, docs_path = build_faiss_index(
+        faiss_path, docs_path = self.index_builder.build(
             embeddings_path=emb_path,
             chunks_path=chunks_path,
             index_dir=self.index_dir,
