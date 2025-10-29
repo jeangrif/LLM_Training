@@ -36,4 +36,6 @@ outputs/*
 # --- Garder les dossiers principaux ---
 !/configs/
 !/src/
+!/src/models/
+!/src/**
 !/pyproject.toml
