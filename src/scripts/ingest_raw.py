@@ -8,7 +8,7 @@ os.chdir(ROOT)
 if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
-from src.embed.datasets import ingest_raw_to_parquet
+from src.scripts.ingest_hf_dataset import ingest_raw_to_parquet
 
 if __name__ == "__main__":
     out = ingest_raw_to_parquet()
