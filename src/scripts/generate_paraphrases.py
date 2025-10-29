@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Step 3: Generate 5 levels of paraphrased questions for evaluation.
+Robust version — 2-stage pipeline:
+1. Generate many paraphrase candidates
+2. Select 5 progressive levels by semantic similarity
 """
 
 import json
@@ -9,65 +12,82 @@ from pathlib import Path
 from tqdm import tqdm
 import torch
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+from sentence_transformers import SentenceTransformer, util
 
 # --------------------------------------------
-# ⚙️ Configuration (edit here as needed)
+# ⚙️ Configuration
 # --------------------------------------------
 CONFIG = {
-    "model_name": "eugenesiow/bart-paraphrase",   # Paraphrasing model
-    "input_path": Path("data/eval/base_questions.jsonl"),   # Base dataset
-    "output_path": Path("data/eval/augmented_questions.jsonl"),  # Output file
-    "limit": 200,         # number of examples to process (None = all)
-    "offset": 0,          # skip first N examples
-    "max_new_tokens": 64, # max tokens for generation
-    "device_preference": "auto",  # auto, cpu, cuda, or mps
+    "model_name": "Vamsi/T5_Paraphrase_Paws",  # ✅ more stable paraphraser
+    "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
+    "input_path": Path("data/eval/base_questions.jsonl"),
+    "output_path": Path("data/eval/augmented_questions.jsonl"),
+    "limit": 2,
+    "offset": 0,
+    "max_new_tokens": 64,
+    "num_candidates": 25,   # number of paraphrases to sample per question
+    "device_preference": "auto",
 }
 
 # --------------------------------------------
-# 💬 Paraphrasing hints per level
+# 🧠 Paraphrasing function
 # --------------------------------------------
-VARIATION_HINTS = {
-    1: "no change",
-    2: "minor paraphrase",
-    3: "different wording",
-    4: "change sentence structure but same meaning",
-    5: "creative reformulation keeping the same intent"
-}
-
-# --------------------------------------------
-# 🧠 Paraphrase function
-# --------------------------------------------
-def paraphrase_question(model, tokenizer, question: str, degree: int, device: str, max_new_tokens: int = 64):
-    """Generate a paraphrased version of a question given the degree of variation."""
-    if degree == 1:
-        return question.strip()  # direct copy for level 1
-
-    prompt = f"Paraphrase the following question with {VARIATION_HINTS[degree]}:\n\n{question}"
+def paraphrase_candidates(model, tokenizer, question, device, max_new_tokens, n=25):
+    """Generate multiple paraphrase candidates with sampling."""
+    prompt = f"paraphrase: {question}"
     inputs = tokenizer(prompt, return_tensors="pt", truncation=True).to(device)
     outputs = model.generate(
         **inputs,
         max_new_tokens=max_new_tokens,
-        temperature=1.0,
-        top_p=0.95,
+        temperature=0.9,
+        top_p=0.9,
         do_sample=True,
-        num_beams=3
+        num_beams=1,
+        num_return_sequences=n
     )
-    paraphrased = tokenizer.decode(outputs[0], skip_special_tokens=True)
-    return paraphrased.strip()
+    texts = [tokenizer.decode(o, skip_special_tokens=True).strip() for o in outputs]
+    # Clean up repeated prompts or prefixes
+    cleaned = [t.replace("Paraphrase:", "").replace("paraphrase:", "").strip() for t in texts]
+    return list(set(cleaned))  # remove duplicates
+
+# --------------------------------------------
+# 🧮 Select 5 paraphrases progressively by similarity
+# --------------------------------------------
+def select_progressive_paraphrases(question, candidates, embedder):
+    """Select 5 paraphrases evenly spaced by semantic similarity."""
+    if not candidates:
+        return [question] * 5
+
+    q_emb = embedder.encode(question, convert_to_tensor=True)
+    c_emb = embedder.encode(candidates, convert_to_tensor=True)
+    sims = util.cos_sim(q_emb, c_emb)[0].cpu().tolist()
+
+    # Sort candidates by similarity descending
+    paired = sorted(zip(candidates, sims), key=lambda x: x[1], reverse=True)
+
+    # Remove overly similar (duplicates) and nonsensical (too low similarity)
+    filtered = [(c, s) for c, s in paired if 0.6 <= s <= 0.99]
+    if len(filtered) < 5:
+        filtered = paired  # fallback
+
+    # Evenly sample 5 across similarity range
+    step = max(1, len(filtered) // 5)
+    selected = [filtered[i][0] for i in range(0, min(len(filtered), step * 5), step)]
+    while len(selected) < 5:
+        selected.append(question)
+
+    return selected[:5]
 
 # --------------------------------------------
 # 🚀 Main function
 # --------------------------------------------
 def generate_paraphrases():
-    """Main entrypoint: load base questions, generate paraphrases, and save JSONL output."""
     cfg = CONFIG
     input_path, output_path = cfg["input_path"], cfg["output_path"]
 
     print(f"🔹 Loading base questions from: {input_path}")
     lines = [json.loads(l) for l in open(input_path, encoding="utf-8")]
     total = len(lines)
-
-    # Apply offset and limit
     if cfg["offset"]:
         lines = lines[cfg["offset"]:]
     if cfg["limit"]:
@@ -75,8 +95,7 @@ def generate_paraphrases():
     print(f"✅ Selected {len(lines)} examples (from {total})")
 
     # Determine device
-    device_pref = cfg["device_preference"].lower()
-    if device_pref == "auto":
+    if cfg["device_preference"].lower() == "auto":
         if torch.cuda.is_available():
             device = "cuda"
         elif torch.backends.mps.is_available():
@@ -84,16 +103,20 @@ def generate_paraphrases():
         else:
             device = "cpu"
     else:
-        device = device_pref
+        device = cfg["device_preference"]
     print(f"💻 Using device: {device.upper()}")
 
-    # Load model and tokenizer
-    print(f"🧠 Loading model: {cfg['model_name']}")
+    # Load models
+    print(f"🧠 Loading paraphrase model: {cfg['model_name']}")
     tokenizer = AutoTokenizer.from_pretrained(cfg["model_name"])
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg["model_name"]).to(device)
     model.eval()
 
-    # Generate paraphrases
+    print(f"🔎 Loading embedding model: {cfg['embedding_model']}")
+    embedder = SentenceTransformer(cfg["embedding_model"], device=device)
+
+    # Paraphrase loop
+    # Paraphrase loop
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as fout:
         for row in tqdm(lines, desc="Generating paraphrases"):
@@ -101,10 +124,21 @@ def generate_paraphrases():
             question = row["question"]
             answer = row["answer"]
 
-            for degree in range(1, 6):
-                paraphrased = paraphrase_question(
-                    model, tokenizer, question, degree, device, cfg["max_new_tokens"]
-                )
+            # 1️⃣ Always keep degree=1 identical
+            degree_1 = question.strip()
+
+            # 2️⃣ Generate many candidates
+            candidates = paraphrase_candidates(
+                model, tokenizer, question, device, cfg["max_new_tokens"], cfg["num_candidates"]
+            )
+
+            # 3️⃣ Select 4 progressively different but semantically close paraphrases
+            selected = select_progressive_paraphrases(question, candidates, embedder)[1:5]
+
+            # 4️⃣ Write all 5 degrees (1 = original, 2–5 = selected)
+            records = [(1, degree_1)] + [(i + 2, s) for i, s in enumerate(selected)]
+
+            for degree, paraphrased in records:
                 record = {
                     "orig_id": qid,
                     "degree": degree,
@@ -115,7 +149,6 @@ def generate_paraphrases():
 
     print(f"✅ Paraphrased dataset saved → {output_path}")
     return output_path
-
 
 # --------------------------------------------
 if __name__ == "__main__":
