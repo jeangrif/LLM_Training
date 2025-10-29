@@ -8,7 +8,7 @@ from platformdirs import user_cache_dir
 from src.utils.cache import cache_llm_if_needed
 
 def _models_dir() -> Path:
-    root = Path(user_cache_dir("LLMTraining")).resolve() / "models"
+    root = Path(user_cache_dir("LLMTraining")).resolve() / "llm"
     root.mkdir(parents=True, exist_ok=True)
     return root
 @contextmanager

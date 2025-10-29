@@ -2,7 +2,7 @@
 from rank_bm25 import BM25Okapi
 import json
 from pathlib import Path
-from src.rag.retriever.base_retriever import RetrieverBase
+from src.components.retriever.base_retriever import RetrieverBase
 
 class BM25Retriever(RetrieverBase):
     def __init__(self, docs_path: Path):

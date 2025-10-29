@@ -4,10 +4,10 @@ from platformdirs import user_cache_dir
 
 def cache_llm_if_needed(local_file: Path, repo_id: str) -> Path:
     """
-    Copie le modèle depuis models/llm/... vers le cache global (~/.cache/LLMTraining)
+    Copie le modèle depuis llm/llm/... vers le cache global (~/.cache/LLMTraining)
     uniquement s'il n'est pas déjà présent.
     """
-    dst = Path(user_cache_dir("LLMTraining")) / "models" / "llm" / repo_id.replace("/", "__") / local_file.name
+    dst = Path(user_cache_dir("LLMTraining")) / "llm" / "llm" / repo_id.replace("/", "__") / local_file.name
     dst.parent.mkdir(parents=True, exist_ok=True)
 
     if not dst.exists():

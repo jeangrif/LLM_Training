@@ -1,11 +1,11 @@
 # src/rag/pipeline.py
-
+# --- TO DO : Improve retriever handling, should be more structured not if/else cond ---
 from pathlib import Path
-from src.rag.retriever.dense_faiss import FaissRetriever
-from src.rag.retriever.sparse_retriever import BM25Retriever
-from src.rag.retriever.hybrid_retriever import HybridRetriever
-from src.rag.reranker import ReRanker
-from src.rag.generator import RagGenerator
+from src.components.retriever.dense_faiss import FaissRetriever
+from src.components.retriever.sparse_retriever import BM25Retriever
+from src.components.retriever.hybrid_retriever import HybridRetriever
+from src.components.reranker import ReRanker
+from src.components.generator import RagGenerator
 from src.eval.metrics.latency import LatencyMeter
 from hydra.core.hydra_config import HydraConfig
 import json

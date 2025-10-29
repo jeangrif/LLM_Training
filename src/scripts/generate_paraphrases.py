@@ -108,7 +108,7 @@ def generate_paraphrases():
         device = cfg["device_preference"]
     print(f"💻 Using device: {device.upper()}")
 
-    # Load models
+    # Load llm
     print(f"🧠 Loading paraphrase model: {cfg['model_name']}")
     tokenizer = AutoTokenizer.from_pretrained(cfg["model_name"])
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg["model_name"]).to(device)

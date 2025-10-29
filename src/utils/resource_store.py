@@ -8,7 +8,7 @@ from huggingface_hub import logging as hf_logging
 APP_NAME = "LLMTraining"
 
 def _models_dir() -> Path:
-    root = Path(user_cache_dir(APP_NAME)).resolve() / "models"
+    root = Path(user_cache_dir(APP_NAME)).resolve() / "llm"
     root.mkdir(parents=True, exist_ok=True)
     return root
 

@@ -1,4 +1,4 @@
 llm_repo: TheBloke/Mistral-7B-Instruct-v0.2-GGUF
 llm_filename: mistral-7b-instruct-v0.2.Q4_K_M.gguf
 chat_format: mistral-instruct
-local_dir: models/llm/TheBloke__Mistral-7B-Instruct-v0.2-GGUF
+local_dir: llm/llm/TheBloke__Mistral-7B-Instruct-v0.2-GGUF

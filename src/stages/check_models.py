@@ -6,7 +6,7 @@ import json
 
 
 def _local_models_dir(subdir: str) -> Path:
-    """Retourne un sous-dossier dans ./models/ (embed / llm / rerank)."""
+    """Retourne un sous-dossier dans ./llm/ (embed / llm / rerank)."""
     root = Path("models").resolve() / subdir
     root.mkdir(parents=True, exist_ok=True)
     return root
@@ -17,7 +17,7 @@ def _local_models_dir(subdir: str) -> Path:
 # --------------------------------------------------------
 def ensure_local_embedding_model(model_name: str, download_if_missing=True) -> Path:
     """
-    Vérifie ou télécharge un modèle d'embedding dans ./models/embed/.
+    Vérifie ou télécharge un modèle d'embedding dans ./llm/embed/.
     """
     safe_name = model_name.replace("/", "__")
     local_dir = _local_models_dir("embed") / safe_name
@@ -39,7 +39,7 @@ def ensure_local_embedding_model(model_name: str, download_if_missing=True) -> P
 # --------------------------------------------------------
 def ensure_local_llm(repo_id: str, filename: str, download_if_missing=True) -> Path:
     """
-    Vérifie ou télécharge un modèle GGUF dans ./models/llm/.
+    Vérifie ou télécharge un modèle GGUF dans ./llm/llm/.
     """
     safe_name = repo_id.replace("/", "__")
     local_dir = _local_models_dir("llm") / safe_name
@@ -110,9 +110,9 @@ class CheckModels:
             "checked_at": datetime.now().isoformat(timespec="seconds"),
         }
 
-        print("✅ All models verified and available locally.")
+        print("✅ All llm verified and available locally.")
         return {
             "status": "ok",
-            "models_dir": str(Path("models").resolve()),
+            "models_dir": str(Path("llm").resolve()),
             "metadata": meta,
         }

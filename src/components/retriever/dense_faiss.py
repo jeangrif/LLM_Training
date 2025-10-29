@@ -1,12 +1,10 @@
 # src/rag/retriever/dense_faiss.py
 
-import os
 import json
 import faiss
 import numpy as np
 from pathlib import Path
 from sentence_transformers import SentenceTransformer
-from src.rag.index_manager import IndexManager
 
 
 class FaissRetriever:

@@ -1,10 +1,9 @@
 # src/rag/retriever/hybrid.py
 # --- TO DO : Add Normalization of Sparse and Dense score ---
-import numpy as np
 from pathlib import Path
-from src.rag.retriever.base_retriever import RetrieverBase
-from src.rag.retriever.dense_faiss import FaissRetriever
-from src.rag.retriever.sparse_retriever import BM25Retriever
+from src.components.retriever.base_retriever import RetrieverBase
+from src.components.retriever.dense_faiss import FaissRetriever
+from src.components.retriever.sparse_retriever import BM25Retriever
 
 class HybridRetriever(RetrieverBase):
     def __init__(self, alpha=0.5, top_k=5, model_name=None, index_dir: Path = None, docs_path: Path = None):

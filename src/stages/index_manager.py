@@ -2,10 +2,10 @@ import json
 import faiss
 from datetime import datetime
 from pathlib import Path
-from src.embed.chunking import TextChunker
-from src.embed.embeddings import Embedder
-from src.embed.faiss_index import FaissIndexBuilder
-from src.rag.setting import RagSettings
+from src.components.embed.chunking import TextChunker
+from src.components.embed.embeddings import Embedder
+from src.components.embed.faiss_index import FaissIndexBuilder
+from src.utils.setting import RagSettings
 
 
 class IndexManager:

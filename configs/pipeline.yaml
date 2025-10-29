@@ -16,26 +16,26 @@ stages:
 
 modules:
   check_models:
-    _target_: src.rag.check_models.CheckModels
+    _target_: src.stages.check_models.CheckModels
     embed_model: ${embed.embedding_model}
     llm_repo: ${llm.llm_repo}
     llm_filename: ${llm.llm_filename}
     rerank_model: ${rerank.model_name}
 
   check_data:
-    _target_: src.rag.index_manager.IndexManager
+    _target_: src.stages.index_manager.IndexManager
     embed_settings: ${embed}
     parquet_path: data/raw/squad_train.parquet
 
   run_rag:
-    _target_: src.rag.runner.RagRunner
+    _target_: src.stages.runner.RagRunner
     input_path: data/eval/augmented_questions.jsonl
     output_path: outputs/results_rag.jsonl
     retrieval_type: dense  # dense, hybrid or sparse
     use_rerank: true  # true or false
     top_k: 4
     alpha: 0.6
-    max_questions: 5
+    max_questions: 10
     index_dir: null
     embedding_model: ${embed.embedding_model}
     model_cfg: ${model}
@@ -43,7 +43,7 @@ modules:
     save_results: false
 
   evaluate:
-    _target_: src.eval.evaluator.Evaluator
+    _target_: src.stages.evaluator.Evaluator
     results_path: None
     output_path: outputs/eval_metrics.jsonl
     metrics: ${eval}

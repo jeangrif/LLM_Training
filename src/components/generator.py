@@ -1,5 +1,5 @@
 # src/rag/runner.py
-from src.models.llama_cpp import LlamaCppProvider
+from src.components.llm.llama_cpp import LlamaCppProvider
 
 
 class RagGenerator:
