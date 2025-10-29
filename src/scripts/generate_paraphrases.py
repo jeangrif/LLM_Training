@@ -22,7 +22,7 @@ CONFIG = {
     "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
     "input_path": Path("data/eval/base_questions.jsonl"),
     "output_path": Path("data/eval/augmented_questions.jsonl"),
-    "limit": 2,
+    "limit": 200,
     "offset": 0,
     "max_new_tokens": 64,
     "num_candidates": 25,   # number of paraphrases to sample per question
