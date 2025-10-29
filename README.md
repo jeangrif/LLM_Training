@@ -100,9 +100,9 @@ All settings are explicit, versioned, and easy to track directly inside each scr
 Once the dataset is prepared, you can launch the main pipeline directly.
 
 ### 🔹 Default run
-
+```bash
 python -m src.main
-
+```
 Hydra will automatically handle:
 - Output directory creation under `outputs/`
 - Logging (`main.log`)
