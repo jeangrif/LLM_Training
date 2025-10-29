@@ -2,7 +2,11 @@
 .DS_Store
 .idea/
 .python-version
-
+.env
+*.env
+.env.*
+.env.*.local
+.envrc
 # --- Python-generated files ---
 __pycache__/
 *.pyc
