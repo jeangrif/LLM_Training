@@ -21,6 +21,8 @@ class RagGenerator:
 
     def generate(self, query: str, contexts: list[str]) -> str:
         """Génère la réponse complète à partir du contexte."""
+        if hasattr(self.model, "reset"):
+            self.model.reset()
         prompt = self.build_prompt(query, contexts)
         return self.model.generate(prompt)
 
