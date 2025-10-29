@@ -1,41 +1,48 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-*.egg-info
+# --- System and IDE files ---
+.DS_Store
+.idea/
+.python-version
 
-# Virtual environments
-.venv
-# --- Ignorer les environnements et fichiers temporaires ---
-.venv/
-.env
+# --- Python-generated files ---
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.egg-info/
 *.log
+build/
+dist/
+wheels/
+
+# --- Virtual environments ---
+.venv/
+.env/
 uv.lock
 
-# --- Ignorer le contenu des gros dossiers, mais garder leur structure ---
+# --- Ignore large data directories but keep structure ---
 data/*
 index/*
 logs/*
 models/*
 outputs/*
 
-# Garder les fichiers .gitkeep dans ces dossiers
+# Keep placeholder files
 !data/.gitkeep
 !index/.gitkeep
 !logs/.gitkeep
 !models/.gitkeep
 !outputs/.gitkeep
 
-# --- Garder les dossiers principaux ---
+# --- Keep main project folders and source code ---
 !/configs/
 !/src/
-!/src/models/
-!/src/**
+!/src/**/*.py
+!/src/**/*.yaml
+!/src/**/*.yml
+!/src/**/*.toml
+!/src/**/*.json
 !/pyproject.toml
+
+# --- Re-ignore caches inside src just in case ---
+src/**/__pycache__/
+
