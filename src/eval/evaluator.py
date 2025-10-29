@@ -6,7 +6,7 @@ from collections import defaultdict
 import numpy as np
 from hydra.core.hydra_config import HydraConfig
 from src.utils.jsonl_helper import load_jsonl, save_jsonl
-
+import json
 
 class Evaluator:
     def __init__(self, results_path: Path, output_path: Path, metrics: dict, embedding_model=None,save_metrics: bool = True,output_filename: str = "eval_metrics.jsonl"):
@@ -61,6 +61,8 @@ class Evaluator:
             for row in group:
                 pred, gold = row.get("pred", ""), row.get("answer", "")
                 contexts = row.get("contexts", [])
+                orig_id = row.get("orig_id", None)
+                degree = row.get("degree", None)
 
                 for name, func in self.metrics.items():
                     if name == "robustness":
@@ -78,6 +80,9 @@ class Evaluator:
                         row[name] = None
                         print(f"⚠️ Error in {name}: {e}")
 
+                row["orig_id"] = orig_id
+                row["degree"] = degree
+
             # robustesse sur le groupe entier
             if "robustness" in self.metrics:
                 try:
@@ -89,16 +94,43 @@ class Evaluator:
 
             all_results.extend(group)
 
+        # Sauvegarde des résultats individuels
         save_jsonl(all_results, self.output_path)
         print(f"✅ Evaluation results saved to {self.output_path}")
 
+        # --------------------------------------------------------
         # Calcul des moyennes
         metric_names = list(self.metrics.keys())
         avg = {
-            m: np.mean([r[m] for r in all_results if r.get(m) is not None])
+            m: float(np.mean([r[m] for r in all_results if r.get(m) is not None]))
             for m in metric_names
         }
+
         print("\n📊 Average Scores:")
         for k, v in avg.items():
             print(f"  {k:<15}: {v:.4f}")
+
+        # --------------------------------------------------------
+        # 🔹 Fusion avec les métriques de latence (summarize_experiment.json)
+        try:
+            summarize_path = Path(HydraConfig.get().run.dir) / "summarize_experiment.json"
+            if summarize_path.exists():
+                import json
+                with open(summarize_path, "r") as f:
+                    summarize_data = json.load(f)
+            else:
+                summarize_data = {}
+
+            # Ajouter les moyennes d'évaluation
+            summarize_data["evaluation_metrics"] = avg
+
+            # Réécrire le fichier
+            with open(summarize_path, "w") as f:
+                json.dump(summarize_data, f, indent=2)
+
+            print(f"✅ Updated summarize_experiment.json with evaluation metrics → {summarize_path}")
+        except Exception as e:
+            print(f"⚠️ Could not update summarize_experiment.json: {e}")
+
         return avg
+

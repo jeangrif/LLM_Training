@@ -21,6 +21,7 @@ class RagRunner:
         save_results: bool = False,
         output_filename: str = "results_rag.jsonl",
         model_cfg=None,
+        latency_cfg=None,
     ):
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -35,6 +36,7 @@ class RagRunner:
         self.output_filename = output_filename
         self.run_dir = Path(HydraConfig.get().run.dir)
         self.model_cfg = model_cfg
+        self.latency_cfg = latency_cfg
 
     # ------------------------------------------------------------
     def run(self, previous=None, **kwargs):
@@ -62,7 +64,8 @@ class RagRunner:
             index_dir=self.index_dir,
             embedding_model = self.embedding_model,
             model_meta=previous.get("check_models", {}).get("metadata", None),
-            model_cfg=self.model_cfg
+            model_cfg=self.model_cfg,
+            latency_cfg = self.latency_cfg
         )
 
         results = []
@@ -70,6 +73,7 @@ class RagRunner:
             q = item["question"]
             r = pipeline.run(q)
             r["orig_id"] = item.get("orig_id", None)
+            r["degree"] = item.get("degree", None)
             r["answer"] = item.get("answer", "")
             results.append(r)
 
@@ -77,6 +81,8 @@ class RagRunner:
         if hasattr(pipeline, "close"):
             pipeline.close()
         results_path = None
+        if hasattr(pipeline, "summarize_latency"):
+            pipeline.summarize_latency()
         if self.save_results:
             results_path = self.run_dir / self.output_filename
             save_jsonl(results, results_path)

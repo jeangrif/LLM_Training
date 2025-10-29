@@ -6,8 +6,9 @@ from src.rag.retriever.sparse_retriever import BM25Retriever
 from src.rag.retriever.hybrid_retriever import HybridRetriever
 from src.rag.reranker import ReRanker
 from src.rag.generator import RagGenerator
-
-
+from src.eval.metrics.latency import LatencyMeter
+from hydra.core.hydra_config import HydraConfig
+import json
 
 class RagPipeline:
     """
@@ -26,6 +27,7 @@ class RagPipeline:
         embedding_model = None,
         model_meta=None,
         model_cfg=None,
+        latency_cfg = None
     ):
         self.top_k = top_k
         self.retrieval_type = retrieval_type
@@ -33,6 +35,8 @@ class RagPipeline:
         self.alpha = alpha
         self.docs_path = Path(index_dir) / "docs.jsonl"
         self.model_meta = model_meta
+        self.latency_cfg = latency_cfg or {}
+        self.latency_meter = LatencyMeter() if self.latency_cfg.get("enabled", True) else None
 
         # --- Choix du retriever ---
         if retrieval_type == "dense":
@@ -49,14 +53,34 @@ class RagPipeline:
         self.generator = RagGenerator(self.model_meta, model_cfg=model_cfg )
 
     def run(self, query: str) -> dict:
-        """Pipeline complet pour une seule question"""
+        """Pipeline complet pour une seule question avec mesure de latence"""
+
+        # --- Retrieval ---
+        if self.latency_meter:
+            self.latency_meter.start("retrieval")
         results = self.retriever.retrieve(query, top_k=self.top_k)
+        if self.latency_meter:
+            self.latency_meter.stop("retrieval")
+
+        # --- Rerank (si activé) ---
         if self.reranker:
+            if self.latency_meter:
+                self.latency_meter.start("rerank")
             results = self.reranker.rerank(query, results, top_k=self.top_k)
+            if self.latency_meter:
+                self.latency_meter.stop("rerank")
+
+        # --- Generation ---
         contexts = [r["text"] for r in results]
+        if self.latency_meter:
+            self.latency_meter.start("generation")
         answer = self.generator.generate(query, contexts)
+        if self.latency_meter:
+            self.latency_meter.stop("generation")
+
         if hasattr(self.generator, "reset"):
             self.generator.reset()
+
         return {"query": query, "pred": answer, "contexts": contexts}
 
     def close(self):
@@ -68,3 +92,22 @@ class RagPipeline:
                 self.retriever.close()
             except Exception:
                 pass
+
+    def summarize_latency(self, output_dir: Path = None):
+        """Sauvegarde le résumé de latence dans le dossier de l'expérimentation Hydra."""
+        if not self.latency_meter:
+            return
+
+        # Récupération du dossier Hydra courant si non spécifié
+        if output_dir is None:
+            output_dir = Path(HydraConfig.get().run.dir)
+
+        summary = self.latency_meter.summary()
+        output_path = Path(output_dir) / "summarize_experiment.json"
+
+        with open(output_path, "w") as f:
+            json.dump(summary, f, indent=2)
+
+        print(f"✅ Latency summary saved to {output_path}")
+
+

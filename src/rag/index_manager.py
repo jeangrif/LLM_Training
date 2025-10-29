@@ -13,22 +13,22 @@ class IndexManager:
         self.embed_cfg = embed_settings
         self.parquet_path = Path(parquet_path or self.embed_cfg.parquet_path)
 
-        # --- Préparer les répertoires Hydra-native ---
+        # --- Preprocess Hydra native ---
         RagSettings(self.embed_cfg).ensure_dirs()
 
-        # --- Paramètres d’embedding et de chunking ---
+        # ---Embeddings and chunking parameters ---
         self.embedding_model = self.embed_cfg.embedding_model
         self.chunk_size = int(self.embed_cfg.chunk_size)
         self.chunk_overlap = int(self.embed_cfg.chunk_overlap)
 
-        # --- Structure des dossiers ---
+        # --- Folder structure ---
         self.base_dir = Path(self.embed_cfg.index_dir)
         self.model_name = self.embedding_model.replace("/", "-")
 
         self.index_dir = self.base_dir / f"{self.model_name}__chunk{self.chunk_size}_ov{self.chunk_overlap}"
         self.index_dir.mkdir(parents=True, exist_ok=True)
 
-        # --- Fichiers principaux ---
+        # --- main files ---
         self.faiss_path = self.index_dir / "faiss.index"
         self.docs_path = self.index_dir / "docs.jsonl"
         self.meta_path = self.index_dir / "metadata.json"
@@ -67,7 +67,7 @@ class IndexManager:
             overlap=self.chunk_overlap,
         )
 
-        # 2️⃣ Génération des embeddings
+        # 2️⃣ Embeddings Generation
         emb_path = generate_embeddings(
             chunks_path=chunks_path,
             model_name=self.embedding_model,
@@ -75,14 +75,14 @@ class IndexManager:
             out_dir=self.index_dir,
         )
 
-        # 3️⃣ Construction de l’index FAISS
+        # 3️⃣ Construct Index FAISS
         faiss_path, docs_path = build_faiss_index(
             embeddings_path=emb_path,
             chunks_path=chunks_path,
             index_dir=self.index_dir,
         )
 
-        # --- Nettoyage des fichiers temporaires ---
+        # --- Clean temporary file ---
         for tmp_file in [chunks_path, emb_path]:
             try:
                 if tmp_file.exists():
@@ -91,7 +91,7 @@ class IndexManager:
             except Exception as e:
                 print(f"⚠️ Could not delete {tmp_file}: {e}")
 
-        # --- Sauvegarde des métadonnées ---
+        # --- Save metadata ---
         metadata = {
             "embedding_model": self.embedding_model,
             "chunk_size": self.chunk_size,

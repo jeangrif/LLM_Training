@@ -1,0 +1,4 @@
+# Configuration du module de mesure de latence RAG
+enabled: true
+log_to_file: true
+output_filename: "latency_metrics.json"
