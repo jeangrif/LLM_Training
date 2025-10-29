@@ -25,7 +25,7 @@ If you prefer to install manually with pip:
 ```bash
 pip install -r requirements.txt
 ```
-# 3️⃣ Project Structure Overview
+## 3️⃣ Project Structure Overview
 
 ```text
 src/
