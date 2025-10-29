@@ -1,4 +1,5 @@
 # src/rag/retriever/hybrid.py
+# --- TO DO : Add Normalization of Sparse and Dense score ---
 import numpy as np
 from pathlib import Path
 from src.rag.retriever.base_retriever import RetrieverBase

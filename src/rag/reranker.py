@@ -1,4 +1,5 @@
 # src/rag/retriever/reranker.py
+# --- TO DO : Improve Reranker class, instantiate with config parameter, change top_k thanks to config parameter --
 from sentence_transformers import CrossEncoder
 
 class ReRanker:
