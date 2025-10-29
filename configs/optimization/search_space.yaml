@@ -1,0 +1,3 @@
+run_rag.retrieval_type:
+  type: categorical
+  values: ["dense", "hybrid", "sparse"]

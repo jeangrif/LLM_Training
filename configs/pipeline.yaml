@@ -35,7 +35,7 @@ modules:
     use_rerank: true  # true or false
     top_k: 4
     alpha: 0.6
-    max_questions: 5
+    max_questions: 50
     index_dir: null
     embedding_model: ${embed.embedding_model}
     model_cfg: ${model}

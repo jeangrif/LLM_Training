@@ -6,6 +6,7 @@ from src.utils.jsonl_helper import load_jsonl, save_jsonl  # si tu as ces helper
 from tqdm import tqdm
 from src.utils.display import display_rag_pipeline_config
 from hydra.core.hydra_config import HydraConfig
+import random
 class RagRunner:
     def __init__(
         self,
@@ -52,8 +53,9 @@ class RagRunner:
             embedding_model=self.embedding_model,
         )
         data = load_jsonl(self.input_path)
+        random.seed(42)
         if self.max_questions:
-            data = data[: self.max_questions]
+            data = random.sample(data, min(self.max_questions, len(data)))
 
 
         pipeline = RagPipeline(
