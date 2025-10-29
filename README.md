@@ -75,7 +75,7 @@ This step downloads a dataset from **Hugging Face**, extracts **question–answe
 
 ### 🔹 Run the full preparation process
 ```bash
-python scripts/prepare_data.py
+python src/scripts/prepare_data.py
 ```
 This command automatically executes the three preparation steps in sequence:
 
