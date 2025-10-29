@@ -1,3 +1,7 @@
+> ⚠️ **Note**  
+> This README was partially generated and refined with the help of an LLM (ChatGPT).  
+> Always verify configuration paths and environment variables before running the pipeline.
+
 ## 1️⃣ Overview
 
 This repository implements a **Retrieval-Augmented Generation (RAG)** pipeline using **Hydra** for configuration management.
