@@ -8,6 +8,13 @@ from src.utils.display import display_rag_pipeline_config
 from hydra.core.hydra_config import HydraConfig
 import random
 class RagRunner:
+    """
+    Execute the full RAG (Retrieval-Augmented Generation) process.
+    Handles data loading, question sampling, pipeline execution, and result saving.
+    """
+
+    # Initialize the RAG runner with input/output configuration and retrieval parameters.
+    # Stores metadata, paths, and model configurations required for execution.
     def __init__(
         self,
         input_path: str,
@@ -41,9 +48,21 @@ class RagRunner:
 
     # ------------------------------------------------------------
     def run(self, previous=None, **kwargs):
-        """Exécute la boucle complète de génération RAG"""
+        """
+        Run the complete RAG workflow.
+
+        Loads input data, initializes the RAG pipeline, processes each query,
+        and optionally saves the generated results.
+
+        Args:
+            previous: Dictionary containing outputs from previous pipeline stages.
+
+        Returns:
+            Dictionary with the generated results and optional output file path.
+        """
         print(f"🧠 Running RAG on file: {self.input_path.name}")
 
+        # Display the current RAG configuration (retrieval mode, reranking, parameters).
         display_rag_pipeline_config(
             retrieval_type=self.retrieval_type,
             use_rerank=self.use_rerank,
@@ -54,10 +73,11 @@ class RagRunner:
         )
         data = load_jsonl(self.input_path)
         random.seed(42)
+        # Optionally limit the number of processed questions for faster experimentation or evaluation.
         if self.max_questions:
             data = random.sample(data, min(self.max_questions, len(data)))
 
-
+        # Initialize the core RAG pipeline that handles retrieval and generation logic.
         pipeline = RagPipeline(
             top_k=self.top_k,
             retrieval_type=self.retrieval_type,
@@ -71,6 +91,7 @@ class RagRunner:
         )
 
         results = []
+        # Process each question through the RAG pipeline and collect generated answers.
         for item in tqdm(data, desc="Processing questions"):
             q = item["question"]
             r = pipeline.run(q)
@@ -79,16 +100,21 @@ class RagRunner:
             r["answer"] = item.get("answer", "")
             results.append(r)
 
-        # ✅ Libération propre du modèle et du GPU
+        # Gracefully release model resources and GPU memory if supported by the pipeline.
         if hasattr(pipeline, "close"):
             pipeline.close()
         results_path = None
+
+        # Optionally display latency statistics if the pipeline provides them.
         if hasattr(pipeline, "summarize_latency"):
             pipeline.summarize_latency()
+
+        # Save generated results to a JSONL file if saving is enabled.
         if self.save_results:
             results_path = self.run_dir / self.output_filename
             save_jsonl(results, results_path)
             print(f"✅ RAG saved → {results_path}")
+
         return {
             "results": results,
             "results_path": str(results_path) if results_path else None,

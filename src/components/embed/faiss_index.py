@@ -6,13 +6,17 @@ from tqdm import tqdm
 
 
 class FaissIndexBuilder:
-    """Construit et sauvegarde un index FAISS à partir d'embeddings et de chunks."""
-
+    """
+    Build and save a FAISS index from precomputed embeddings and their corresponding text chunks.
+    """
+    # Initialize the FAISS index builder with empty index and dimension placeholders.
     def __init__(self):
         self.index = None
         self.dim = None
 
     @staticmethod
+    # Load embeddings from a NumPy file and return them as a NumPy array.
+    # Raises an error if the file is missing.
     def load_embeddings(path: Path):
         if not path.exists():
             raise FileNotFoundError(f"Embeddings file not found: {path}")
@@ -21,6 +25,8 @@ class FaissIndexBuilder:
         return emb
 
     @staticmethod
+    # Load chunk records (text and metadata) from a JSONL file.
+    # Returns a generator yielding one chunk at a time.
     def load_chunks(chunks_path: Path):
         """Lit les chunks JSONL avec texte et métadonnées."""
         with open(chunks_path, "r", encoding="utf-8") as f:
@@ -29,8 +35,16 @@ class FaissIndexBuilder:
 
     def build(self, embeddings_path: Path, chunks_path: Path, index_dir: Path):
         """
-        Construit un index FAISS à partir des embeddings normalisés
-        et génère un fichier docs.jsonl aligné (texte + meta).
+        Build a FAISS index from normalized embeddings and aligned text chunks.
+        Saves both the FAISS index file and the corresponding document metadata.
+
+        Args:
+            embeddings_path: Path to the .npy file containing embeddings.
+            chunks_path: Path to the JSONL file containing chunk metadata.
+            index_dir: Output directory where index and metadata will be saved.
+
+        Returns:
+            Tuple containing the paths to the saved FAISS index and docs JSONL files.
         """
         index_dir.mkdir(parents=True, exist_ok=True)
         faiss_path = index_dir / "faiss.index"
@@ -42,6 +56,7 @@ class FaissIndexBuilder:
         if len(chunks) != embeddings.shape[0]:
             raise ValueError(f"Mismatch: {len(chunks)} chunks vs {embeddings.shape[0]} embeddings")
 
+        # Ensure all embedding vectors are unit-normalized before adding to FAISS (for cosine similarity).
         faiss.normalize_L2(embeddings)
         self.dim = embeddings.shape[1]
         print(f"🔹 Building FAISS index (dim={self.dim}, n={len(embeddings)}) ...")
@@ -56,6 +71,7 @@ class FaissIndexBuilder:
                 f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         print(f"💾 Docs metadata saved → {docs_path}")
 
+        # Sanity check: the number of indexed vectors must match the number of documents.
         if self.index.ntotal != len(chunks):
             raise RuntimeError("FAISS index size mismatch with docs.jsonl")
 

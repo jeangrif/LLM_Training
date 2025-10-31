@@ -13,21 +13,27 @@ from rich.table import Table
 
 class ExperimentRunner:
     """
-    Orchestrateur générique du pipeline RAG.
-    Lit les stages et modules définis dans le YAML.
-    Chaque module doit avoir une méthode .run().
+    Generic orchestrator for the RAG pipeline.
+    Loads the pipeline stages from the Hydra YAML configuration and executes them sequentially.
+    Each module must implement a `.run()` method returning its output.
     """
 
+    # Initialize the ExperimentRunner with the Hydra configuration.
+    # Stores the root directory and configuration for later access.
     def __init__(self, cfg: DictConfig):
         self.cfg = cfg
         self.root_dir = Path(hydra.utils.get_original_cwd()).resolve()
 
     # --------------------------------------------------------
+    # Execute the full pipeline based on the defined stages.
+    # Displays the pipeline flow, dynamically instantiates each module,
+    # and propagates outputs between stages when needed.
     def run(self):
         console = Console()
         console.print("\n🚀 [bold cyan]Starting dynamic RAG pipeline[/bold cyan]")
 
-        # --- 🎨 Affichage du flow du pipeline ---
+        # Display the ordered list of pipeline stages with their target modules.
+        # Provides a visual summary of the configured execution flow.
         stages = self.cfg.stages
         table = Table(title="🔁 Pipeline Flow", show_header=True, header_style="bold magenta")
         table.add_column("Order", justify="center")
@@ -41,7 +47,8 @@ class ExperimentRunner:
 
         console.print(table)
 
-        # --- 🧠 Exécution réelle ---
+        # Sequentially execute each stage of the pipeline.
+        # Each stage receives optional results from the previous stage when required.
         results = {}
         for i, stage_name in enumerate(stages):
             console.print(f"\n🔹 [bold yellow]Stage:[/bold yellow] {stage_name}")
@@ -51,7 +58,8 @@ class ExperimentRunner:
 
             module_cfg = self.cfg.modules[stage_name]
 
-            # 🔁 Injection du résultat précédent
+            # Inject relevant outputs (e.g., paths, indexes) from the previous stage
+            # into the current module configuration to maintain state continuity.
             prev_result = results.get(stages[i - 1], {}) if i > 0 else {}
 
             for key in ["index_dir"]:  # seules les clés qu'on veut propager
@@ -59,13 +67,15 @@ class ExperimentRunner:
                     with open_dict(module_cfg):
                         module_cfg[key] = prev_result[key]
 
-            # 🧩 Instanciation dynamique
+
+            # Dynamically instantiate the module defined in the YAML config using Hydra.
             module = instantiate(module_cfg)
 
             if not hasattr(module, "run"):
                 raise AttributeError(f"Module {module.__class__.__name__} has no .run() method")
 
-            # 🚀 Exécution du stage
+
+            # Execute the current module's `.run()` method and store its results.
             result = module.run(previous=results)
             results[stage_name] = result
 

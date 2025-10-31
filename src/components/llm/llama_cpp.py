@@ -5,15 +5,21 @@ from llama_cpp import Llama
 from pathlib import Path
 from .base_model import BaseProvider
 from platformdirs import user_cache_dir
+import gc
 from src.utils.cache import cache_llm_if_needed
 
+# Return the default local directory for storing LLM model files.
+# Creates the directory if it does not already exist.
 def _models_dir() -> Path:
     root = Path(user_cache_dir("LLMTraining")).resolve() / "llm"
     root.mkdir(parents=True, exist_ok=True)
     return root
 @contextmanager
 def suppress_all_output():
-    """Masque tous les logs C/C++ (stdout + stderr) même pendant la libération mémoire."""
+    """
+    Context manager that suppresses all stdout and stderr output,
+    including C/C++ logs during model loading or memory release.
+    """
     devnull = open(os.devnull, "w")
     old_stdout, old_stderr = sys.stdout, sys.stderr
     try:
@@ -28,10 +34,17 @@ def suppress_all_output():
 
 
 class LlamaCppProvider(BaseProvider):
+    """
+    Provider wrapper for running local LLaMA models through llama.cpp.
+    Handles model loading, prompt generation, and resource cleanup.
+    """
+
+    # Initialize the llama.cpp provider with model metadata and configuration parameters.
+    # Validates paths, loads the model silently, and prepares runtime settings.
     def __init__(self, model_meta: dict, model_cfg: dict):
         super().__init__("llama_cpp")
 
-        # --- Vérification de cohérence ---
+        # Validate that model metadata and local file path are correctly defined before loading.
         if not model_meta or "llm_path" not in model_meta:
             raise ValueError("❌ Missing model metadata (did you run 'check_models' first?)")
 
@@ -39,7 +52,7 @@ class LlamaCppProvider(BaseProvider):
         if not local_path.exists():
             raise FileNotFoundError(f"❌ LLM file not found at {local_path}")
 
-        # --- Hyperparamètres Hydra (plus de getenv) ---
+        # Load runtime parameters (context size, threads, GPU layers, etc.) from the Hydra configuration.
         self.n_ctx = model_cfg.get("n_ctx", 8192)
         self.n_threads = model_cfg.get("n_threads", 8)
         self.n_gpu_layers = model_cfg.get("n_gpu_layers", 32)
@@ -51,7 +64,7 @@ class LlamaCppProvider(BaseProvider):
         print(f"🧠 Loading {model_meta['llm_repo']} ({local_path.name})...")
         print(f"⚙️ Config: ctx={self.n_ctx}, threads={self.n_threads}, gpu_layers={self.n_gpu_layers}")
 
-        # --- Chargement silencieux ---
+        # Load the LLaMA model while suppressing all underlying C++ logs.
         with suppress_all_output():
             self.llm = Llama(
                 model_path=str(local_path),
@@ -61,16 +74,26 @@ class LlamaCppProvider(BaseProvider):
                 chat_format=self.chat_format,
             )
 
-        # --- Métadonnées pour EvalLogger ---
+
         self._model_file = local_path.name
         self.messages = []
         print(f"✅ Llama.cpp model ready → {local_path}")
 
     def generate(self, prompt: str, **kwargs) -> str:
+        """
+        Generate a model response for a given input prompt using llama.cpp.
+
+        Args:
+            prompt (str): User prompt including context and question.
+            **kwargs: Optional generation parameters such as max_new_tokens.
+
+        Returns:
+            str: Generated text output from the model.
+        """
         max_tokens = int(kwargs.get("max_new_tokens", self.max_new))
         self.messages.append({"role": "user", "content": prompt})
 
-        # 🔇 Silence aussi pendant la génération + cleanup
+        # Suppress verbose C++ logs during inference for cleaner output.
         with suppress_all_output():
             out = self.llm.create_chat_completion(
                 messages=self.messages,
@@ -84,9 +107,11 @@ class LlamaCppProvider(BaseProvider):
         self.messages.append({"role": "assistant", "content": response})
         return response
 
+    # Reset the stored chat history for a fresh conversation state.
     def reset(self):
         self.messages = []
 
+    # Return basic model configuration and runtime details for logging or evaluation.
     def get_model_info(self):
         return {
             "provider": "llama_cpp",
@@ -97,9 +122,12 @@ class LlamaCppProvider(BaseProvider):
         }
 
     def close(self):
-        """Ferme proprement le modèle et libère silencieusement la mémoire GPU."""
+        """
+        Cleanly release the LLaMA model and free GPU memory silently.
+        """
         if hasattr(self, "llm"):
             with suppress_all_output():
                 del self.llm
-            import gc
+
+            # Force garbage collection to ensure GPU and memory resources are fully released.
             gc.collect()

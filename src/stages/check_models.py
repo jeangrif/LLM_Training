@@ -6,18 +6,21 @@ import json
 
 
 def _local_models_dir(subdir: str) -> Path:
-    """Retourne un sous-dossier dans ./llm/ (embed / llm / rerank)."""
+    # Return the path to a subdirectory inside ./models/ (embed / llm / rerank).
+    # Creates the directory if it does not exist.
     root = Path("models").resolve() / subdir
     root.mkdir(parents=True, exist_ok=True)
     return root
 
 
 # --------------------------------------------------------
-# 🔹 EMBEDDING MODELS
+# Embedding Models
 # --------------------------------------------------------
+
 def ensure_local_embedding_model(model_name: str, download_if_missing=True) -> Path:
     """
-    Vérifie ou télécharge un modèle d'embedding dans ./llm/embed/.
+    Check if the embedding model exists locally under ./models/embed/.
+    If missing, download it from the Hugging Face Hub.
     """
     safe_name = model_name.replace("/", "__")
     local_dir = _local_models_dir("embed") / safe_name
@@ -35,11 +38,13 @@ def ensure_local_embedding_model(model_name: str, download_if_missing=True) -> P
 
 
 # --------------------------------------------------------
-# 🔹 LLM MODELS
+# LLM Models
 # --------------------------------------------------------
+
 def ensure_local_llm(repo_id: str, filename: str, download_if_missing=True) -> Path:
     """
-    Vérifie ou télécharge un modèle GGUF dans ./llm/llm/.
+    Check if the GGUF LLM file exists locally under ./models/llm/.
+    If missing, download it from the Hugging Face Hub.
     """
     safe_name = repo_id.replace("/", "__")
     local_dir = _local_models_dir("llm") / safe_name
@@ -59,11 +64,13 @@ def ensure_local_llm(repo_id: str, filename: str, download_if_missing=True) -> P
 
 
 # --------------------------------------------------------
-# 🔹 RERANK MODELS (optionnel)
+# Rerank Models (optional)
 # --------------------------------------------------------
+
 def ensure_local_reranker(model_name: str, download_if_missing=True) -> Path:
     """
-    Vérifie ou télécharge un modèle de re-ranking (CrossEncoder).
+    Check if the reranker model (CrossEncoder) exists locally under ./models/rerank/.
+    If missing, download it from the Hugging Face Hub.
     """
     safe_name = model_name.replace("/", "__")
     local_dir = _local_models_dir("rerank") / safe_name
@@ -81,17 +88,21 @@ def ensure_local_reranker(model_name: str, download_if_missing=True) -> Path:
 
 
 # --------------------------------------------------------
-# 🔹 STAGE CLASS
+# Stage Class
 # --------------------------------------------------------
 class CheckModels:
-    """Stage 1 : vérifie la présence locale des modèles (embed / llm / rerank)."""
-
+    """
+    Stage 1: Verify that all required models (embedding, LLM, reranker) are available locally.
+    Downloads missing models if necessary.
+    """
     def __init__(self, embed_model: str, llm_repo: str, llm_filename: str, rerank_model: str = None):
         self.embed_model = embed_model
         self.llm_repo = llm_repo
         self.llm_filename = llm_filename
         self.rerank_model = rerank_model
 
+    # Check the local availability of all models defined in the configuration.
+    # Returns their resolved paths and metadata for later pipeline stages.
     def run(self, **kwargs):
         print("🔍 Checking local model availability...")
 

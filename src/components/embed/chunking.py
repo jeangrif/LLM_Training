@@ -4,13 +4,18 @@ import pandas as pd
 from tqdm import tqdm
 
 class TextChunker:
-    """Gère la découpe de texte et la génération de chunks à partir d'un parquet."""
+    """
+    Handle text segmentation and chunk generation from a parquet dataset.
+    """
 
+    # Initialize the text chunker with chunk size, overlap, and the text column name to process.
     def __init__(self, chunk_size: int, overlap: int, text_field: str):
         self.chunk_size = chunk_size
         self.overlap = overlap
         self.text_field = text_field
 
+    # Split a single text string into overlapping chunks.
+    # Returns a list of text segments based on chunk size and overlap.
     def chunk_text(self, text: str):
         if not text:
             return []
@@ -21,6 +26,8 @@ class TextChunker:
             start += self.chunk_size - self.overlap
         return chunks
 
+    # Generate text chunks from a parquet file and save them to a JSONL file.
+    # Removes duplicate rows based on the text field before chunking.
     def make_chunks(self, parquet_path: Path, out_dir: Path):
         out_dir.mkdir(parents=True, exist_ok=True)
         out_path = out_dir / "chunks.jsonl"
@@ -32,6 +39,8 @@ class TextChunker:
         before = len(df)
         df = df.drop_duplicates(subset=[self.text_field]).reset_index(drop=True)
         after = len(df)
+
+        # Remove duplicate entries before chunking to ensure unique contexts.
         print(f"🧹 Removed {before - after} duplicate contexts → {after} unique rows remain.")
 
         print(f"🔹 Creating chunks from {after} unique rows...")
