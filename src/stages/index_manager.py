@@ -6,7 +6,7 @@ from src.components.embed.chunking import TextChunker
 from src.components.embed.embeddings import Embedder
 from src.components.embed.faiss_index import FaissIndexBuilder
 from src.utils.setting import RagSettings
-
+from src.components.embed.qrels_builder import QrelsBuilder
 
 
 class IndexManager:
@@ -18,7 +18,8 @@ class IndexManager:
 
     # Initialize the index manager with embedding settings and optional parquet input path.
     # Prepares directories, chunker, embedder, and FAISS builder components.
-    def __init__(self, embed_settings, parquet_path: str = None):
+    def __init__(self, embed_settings, parquet_path: str = None, auto_build_qrels: bool = True,
+             qrels_mode: str = "offset"):
         self.embed_cfg = embed_settings
         self.parquet_path = Path(parquet_path or self.embed_cfg.parquet_path)
 
@@ -42,6 +43,10 @@ class IndexManager:
         self.faiss_path = self.index_dir / "faiss.index"
         self.docs_path = self.index_dir / "docs.jsonl"
         self.meta_path = self.index_dir / "metadata.json"
+
+        self.auto_build_qrels = bool(auto_build_qrels)
+        self.qrels_mode = qrels_mode
+
         self.chunker = TextChunker(
             chunk_size=self.chunk_size,
             overlap=self.chunk_overlap,
@@ -55,18 +60,33 @@ class IndexManager:
 
     # ---------------------------------------------------------
     def run(self, **kwargs):
-        """
-        Unified interface for the Hydra orchestrator.
-        Returns the index directory path and build status.
-        """
         if self._is_ready():
             print(f"✅ Using cached index → {self.index_dir}")
-            return {"status": "cached", "index_dir": str(self.index_dir)}
+            qrels_path = None
+            if self.auto_build_qrels:
+                qrels_path = self._ensure_qrels()
+            return {
+                "status": "cached",
+                "index_dir": str(self.index_dir),
+                "docs_path": str(self.docs_path),
+                "qrels_path": str(qrels_path) if qrels_path else None,
+            }
 
         print(f"⚙️ Building FAISS index for {self.model_name} (chunk={self.chunk_size}, overlap={self.chunk_overlap})")
         index, docs = self._build_from_parquet(self.parquet_path)
         print(f"✅ New index created → {self.index_dir}")
-        return {"status": "built", "index_dir": str(self.index_dir), "num_docs": len(docs)}
+
+        qrels_path = None
+        if self.auto_build_qrels:
+            qrels_path = self._ensure_qrels()
+
+        return {
+            "status": "built",
+            "index_dir": str(self.index_dir),
+            "docs_path": str(self.docs_path),
+            "qrels_path": str(qrels_path) if qrels_path else None,
+            "num_docs": len(docs),
+        }
 
     # ---------------------------------------------------------
     def _is_ready(self):
@@ -83,6 +103,19 @@ class IndexManager:
         with open(self.docs_path, "r", encoding="utf-8") as f:
             docs = [json.loads(line) for line in f]
         return index, docs
+
+    def _ensure_qrels(self):
+        qrels_path = self.index_dir / "qrels.jsonl"
+        if qrels_path.exists():
+            return qrels_path
+        builder = QrelsBuilder(
+            parquet_path=self.parquet_path,
+            text_field=self.embed_cfg.text_field,
+            chunk_size=self.chunk_size,
+            chunk_overlap=self.chunk_overlap,
+            mode=self.qrels_mode,
+        )
+        return builder.build(out_dir=self.index_dir, docs_path=self.docs_path)
 
     def _build_from_parquet(self, parquet_path: Path):
         """
@@ -124,6 +157,7 @@ class IndexManager:
             "chunk_overlap": self.chunk_overlap,
             "built_at": datetime.now().isoformat(timespec="seconds"),
             "num_chunks": sum(1 for _ in open(docs_path, "r")),
+            "qrels_present": (self.index_dir / "qrels.jsonl").exists(),
         }
         with open(self.meta_path, "w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)

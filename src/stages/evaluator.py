@@ -23,6 +23,7 @@ class Evaluator:
         metrics: dict,
         embedding_model=None,
         save_metrics: bool = True,
+        qrels_path: Path = None,
         output_filename: str = "eval_metrics.jsonl",
     ):
         """
@@ -38,34 +39,42 @@ class Evaluator:
         self.save_metrics = save_metrics
         self.output_path = Path(HydraConfig.get().run.dir) / output_filename
 
+        self.qrels_path = Path(qrels_path) if qrels_path else None
+
         # Load the shared SentenceTransformer model (used by all metrics).
         self.model = SentenceTransformer(embedding_model)
 
         # Dynamically load metric classes from their configured module paths.
+
         self.metrics = self._load_metrics(metrics)
         print(f"✅ Loaded metrics: {list(self.metrics.keys())}")
 
     # Dynamically import and initialize metric classes from their module paths.
     def _load_metrics(self, metrics_cfg: dict):
-        """
-        Dynamically load and instantiate metric classes based on configuration.
 
-        Args:
-            metrics_cfg (dict): Mapping of metric names to their module.class paths.
 
-        Returns:
-            dict: Dictionary of metric name → instantiated metric class.
-        """
         metrics = {}
         for name, path in metrics_cfg.items():
             module_name, class_name = path.rsplit(".", 1)
             module = importlib.import_module(module_name)
             metric_class = getattr(module, class_name)
-            metrics[name] = metric_class(model=self.model)
+
+
+
+            # ✅ on passe qrels_path uniquement pour retrieval_quality
+            if name == "retriever_quality":
+
+                metrics[name] = metric_class(model=self.model, qrels_path=self.qrels_path)
+            else:
+                metrics[name] = metric_class(model=self.model)
+
+
+
         return metrics
 
     # Main evaluation loop: compute all metrics, save results, and aggregate averages.
     def run(self, previous=None, **kwargs):
+        print(f"\n[DEBUG] Evaluator starting run() with qrels_path={self.qrels_path}")
 
         # Load RAG results either from memory (previous stage) or from a file.
         results = None
@@ -109,18 +118,40 @@ class Evaluator:
         save_jsonl(all_results, self.output_path)
         print(f"✅ Evaluation results saved to {self.output_path}")
 
-        # Compute average scores across all evaluated results.
+        # Compute average scores across all evaluated results
         metric_names = list(self.metrics.keys())
-        avg = {
-            m: float(np.mean([r[m] for r in all_results if r.get(m) is not None]))
-            for m in metric_names
-        }
+        avg = {}
 
+        for m in metric_names:
+            values = [r[m] for r in all_results if r.get(m) is not None]
+
+            if not values:
+                continue
+
+            if isinstance(values[0], dict):
+                subkeys = values[0].keys()
+                avg[m] = {}
+                for sub in subkeys:
+                    # on ne fait la moyenne que sur les champs numériques
+                    numeric_values = [v[sub] for v in values if sub in v and isinstance(v[sub], (int, float))]
+                    if numeric_values:
+                        avg[m][sub] = float(np.mean(numeric_values))
+            else:
+                avg[m] = float(np.mean(values))
+
+        # ──────────────────────────────────────────────
+        # 🧾 Display neatly formatted average results
         print("\n📊 Average Scores:")
-        for k, v in avg.items():
-            print(f"  {k:<15}: {v:.4f}")
+        for m, v in avg.items():
+            if isinstance(v, dict):
+                print(f"\n🔹 {m.upper()}:")
+                for sub, val in v.items():
+                    print(f"   {sub:<15}: {val:.4f}")
+            else:
+                print(f"  {m:<15}: {v:.4f}")
 
-        # Update the Hydra experiment summary file with evaluation averages.
+        # ──────────────────────────────────────────────
+        # 🗂 Update summarize_experiment.json
         try:
             summarize_path = Path(HydraConfig.get().run.dir) / "summarize_experiment.json"
             if summarize_path.exists():

@@ -35,12 +35,13 @@ modules:
     use_rerank: true  # true or false
     top_k: 4
     alpha: 0.6
-    max_questions: 5
+    max_questions: 1
     index_dir: null
     embedding_model: ${embed.embedding_model}
     model_cfg: ${model}
     latency_cfg: ${latency}
     save_results: false
+    propagate_keys: [index_dir]
 
   evaluate:
     _target_: src.stages.evaluator.Evaluator
@@ -49,4 +50,5 @@ modules:
     metrics: ${eval}
     embedding_model: ${embed.embedding_model}
     save_metrics: true
+    propagate_keys: [qrels_path]
 

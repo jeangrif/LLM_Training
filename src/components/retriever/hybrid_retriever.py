@@ -93,6 +93,7 @@ class HybridRetriever(RetrieverBase):
                     rrf += 1.0 / (self.rrf_k + s_ranks[i])
                 base = d_map.get(i) or s_map.get(i)
                 results.append({
+                    "doc_id": i,
                     "text": base["text"],
                     "fused_score": rrf,
                     "dense_score": float(d_map.get(i, {}).get("score", 0.0)),

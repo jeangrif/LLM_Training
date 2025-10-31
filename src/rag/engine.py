@@ -90,6 +90,7 @@ class RagPipeline:
         # Generate the final answer using the query and the retrieved (and possibly reranked) contexts.
         # Measure latency for the generation step if enabled.
         contexts = [r["text"] for r in results]
+        doc_ids = [r["doc_id"] for r in results]
         if self.latency_meter:
             self.latency_meter.start("generation")
         answer = self.generator.generate(query, contexts)
@@ -100,7 +101,7 @@ class RagPipeline:
         if hasattr(self.generator, "reset"):
             self.generator.reset()
 
-        return {"query": query, "pred": answer, "contexts": contexts}
+        return {"query": query, "pred": answer, "contexts": contexts, "doc_ids": doc_ids}
 
     def close(self):
         """

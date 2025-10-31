@@ -1,53 +1,58 @@
-from sentence_transformers import util
-import torch
+from collections import defaultdict
+from src.utils.jsonl_helper import load_jsonl
+import math
 
-def retrieval_quality(query, retrieved_docs, relevant_docs, model, k=5, relevance_threshold=0.7):
-    """
-    Évalue la qualité du retrieval d'un RAG via trois critères :
-    - recall@k : proportion de documents pertinents retrouvés
-    - mmr_diversity : redondance entre les documents
-    - embedding_coverage : proximité sémantique moyenne avec la requête
-    """
+class Retriever_Quality:
+    def __init__(self, model=None, qrels_path=None):
+        self.qrels_path = qrels_path
+        self.qrels = self._load_qrels(qrels_path)
 
-    if not retrieved_docs:
-        return {"recall@k": 0.0, "mmr_diversity": 0.0, "embedding_coverage": 0.0}
+    def _load_qrels(self, qrels_path):
+        qrels = load_jsonl(qrels_path)
+        qrels_dict = defaultdict(dict)
+        for item in qrels:
+            qrels_dict[item["qid"]][item["doc_id"]] = item.get("rel", 1)
+        return qrels_dict
 
-    # Encodage
-    emb_query = model.encode(query, convert_to_tensor=True, show_progress_bar=False)
-    emb_retrieved = model.encode(retrieved_docs, convert_to_tensor=True, show_progress_bar=False)
+    def _precision_recall_f1(self, retrieved_docs, relevant_docs):
+        intersection = len(set(retrieved_docs) & relevant_docs)
+        precision = intersection / len(retrieved_docs) if retrieved_docs else 0.0
+        recall = intersection / len(relevant_docs) if relevant_docs else 0.0
+        f1 = (2 * precision * recall / (precision + recall)) if (precision + recall) else 0.0
+        return precision, recall, f1
 
-    # Si ground truth dispo
-    if relevant_docs:
-        emb_relevant = model.encode(relevant_docs, convert_to_tensor=True, show_progress_bar=False)
-    else:
-        emb_relevant = None
+    def _ndcg(self, retrieved_docs, relevant_docs):
+        """Compute normalized DCG (discounted cumulative gain)."""
+        gains = [1 if doc in relevant_docs else 0 for doc in retrieved_docs]
+        dcg = sum(g / math.log2(i + 2) for i, g in enumerate(gains))
+        ideal_gains = sorted(gains, reverse=True)
+        idcg = sum(g / math.log2(i + 2) for i, g in enumerate(ideal_gains))
+        return dcg / idcg if idcg > 0 else 0.0
 
-    # -------------------------
-    # 1. Recall@k
-    # -------------------------
-    recall_k = 0.0
-    if emb_relevant is not None:
-        sims = util.cos_sim(emb_retrieved[:k], emb_relevant)
-        hits = (sims > relevance_threshold).any(dim=1)
-        recall_k = hits.float().mean().item()
+    def compute(self, row, group=None):
+        qid = row["orig_id"]
+        retrieved_docs = row.get("doc_ids", [])
+        relevant_docs = set(self.qrels.get(qid, {}).keys())
 
-    # -------------------------
-    # 2. MMR Diversity
-    # -------------------------
-    mmr_div = 0.0
-    if len(retrieved_docs) > 1:
-        sims = util.cos_sim(emb_retrieved, emb_retrieved)
-        sims.fill_diagonal_(0.0)
-        avg_sim = sims.mean().item()
-        mmr_div = 1 - avg_sim  # plus c'est haut, plus c'est diversifié
+        if not relevant_docs:
+            return None  # no ground truth relevance
 
-    # -------------------------
-    # 3. Embedding Coverage
-    # -------------------------
-    coverage = util.cos_sim(emb_query, emb_retrieved).mean().item()
+        precision, recall, f1 = self._precision_recall_f1(retrieved_docs, relevant_docs)
+        ndcg = self._ndcg(retrieved_docs, relevant_docs)
 
-    return {
-        "recall@k": recall_k,
-        "mmr_diversity": mmr_div,
-        "embedding_coverage": coverage,
-    }
+        # top-k variant
+        top_k = min(5, len(retrieved_docs))
+        retrieved_topk = retrieved_docs[:top_k]
+        precision_at_k, recall_at_k, _ = self._precision_recall_f1(retrieved_topk, relevant_docs)
+
+        return {
+            "qid": qid,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "precision@5": precision_at_k,
+            "recall@5": recall_at_k,
+            "nDCG": ndcg,
+            "n_relevant": len(relevant_docs),
+            "n_retrieved": len(retrieved_docs)
+        }

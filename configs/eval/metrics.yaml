@@ -2,4 +2,5 @@ exact_match: src.eval.metrics.exact_match.ExactMatch
 semantic_similarity: src.eval.metrics.semantic_similarity.SemanticSimilarity
 lexical_overlap: src.eval.metrics.lexical_overlap.LexicalOverlap
 faithfulness: src.eval.metrics.faithfulness.Faithfulness
+retriever_quality: src.eval.metrics.retrieval_quality.Retriever_Quality
 #robustness: src.eval.metrics.robustness.RobustnessByDegree

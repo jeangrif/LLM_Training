@@ -60,14 +60,22 @@ class ExperimentRunner:
 
             # Inject relevant outputs (e.g., paths, indexes) from the previous stage
             # into the current module configuration to maintain state continuity.
-            prev_result = results.get(stages[i - 1], {}) if i > 0 else {}
+            prev_result = {}
+            for past_stage in stages[:i]:
+                prev_result.update(results.get(past_stage, {}))
 
-            for key in ["index_dir"]:  # seules les clés qu'on veut propager
+            keys_to_propagate = module_cfg.get("propagate_keys", [])
+            for key in keys_to_propagate:
                 if key in prev_result:
                     with open_dict(module_cfg):
                         module_cfg[key] = prev_result[key]
+            with open_dict(module_cfg):
+                module_cfg.pop("propagate_keys", None)
 
 
+            for key in ["index_dir", "qrels_path"]:
+                val = module_cfg.get(key, None)
+                print(f"   {key}: {val}")
             # Dynamically instantiate the module defined in the YAML config using Hydra.
             module = instantiate(module_cfg)
 
@@ -78,6 +86,7 @@ class ExperimentRunner:
             # Execute the current module's `.run()` method and store its results.
             result = module.run(previous=results)
             results[stage_name] = result
+
 
             console.print(f"✅ [green]Stage '{stage_name}' completed successfully.[/green]\n")
 
