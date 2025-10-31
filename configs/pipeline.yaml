@@ -31,11 +31,11 @@ modules:
     _target_: src.stages.rag_runner.RagRunner
     input_path: data/eval/augmented_questions.jsonl
     output_path: outputs/results_rag.jsonl
-    retrieval_type: dense  # dense, hybrid or sparse
+    retrieval_type: hybrid  # dense, hybrid or sparse
     use_rerank: true  # true or false
     top_k: 4
     alpha: 0.6
-    max_questions: 100
+    max_questions: 5
     index_dir: null
     embedding_model: ${embed.embedding_model}
     model_cfg: ${model}
