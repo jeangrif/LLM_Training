@@ -32,7 +32,7 @@ class ReRanker:
         Returns:
             list: Re-ranked list of documents with added 'rerank_score' field.
         """
-        test_top_k =5
+
         # Prepare (query, document) pairs for batch scoring with the cross-encoder.
         pairs = [(query, r["text"]) for r in results]
         scores = self.model.predict(pairs)
@@ -41,6 +41,6 @@ class ReRanker:
 
         # Sort documents by predicted relevance score in descending order.
         results.sort(key=lambda x: x["rerank_score"], reverse=True)
-        if test_top_k:
-            results = results[:test_top_k]
+        if top_k:
+            results = results[:top_k]
         return results

@@ -46,7 +46,7 @@ class HybridRetriever(RetrieverBase):
         self.rrf_k = rrf_k
 
         self.dense = FaissRetriever(index_dir=index_dir, model_name=model_name)
-        self.sparse = BM25Retriever(docs_path)
+        self.sparse = BM25Retriever(index_dir=index_dir)
         self.retrieval_type = "hybrid"
 
     # Normalize a list of scores to [0,1] per query; stable when all equal.

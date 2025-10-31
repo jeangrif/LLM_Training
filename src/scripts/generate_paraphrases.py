@@ -1,10 +1,10 @@
-#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Step 3: Generate 5 levels of paraphrased questions for evaluation.
 Robust version — 2-stage pipeline:
 1. Generate many paraphrase candidates
 2. Select 5 progressive levels by semantic similarity
+Also generates a full 'initial_questions.jsonl' file with degree=1 for all base questions.
 """
 import random
 import json
@@ -22,12 +22,36 @@ CONFIG = {
     "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
     "input_path": Path("data/eval/base_questions.jsonl"),
     "output_path": Path("data/eval/augmented_questions.jsonl"),
+    "initial_output_path": Path("data/eval/initial_questions.jsonl"),
     "limit": 200,
     "offset": 0,
     "max_new_tokens": 64,
     "num_candidates": 25,   # number of paraphrases to sample per question
     "device_preference": "auto",
 }
+
+# --------------------------------------------
+# 🧩 Generate initial dataset
+# --------------------------------------------
+def generate_initial_dataset(cfg):
+    """Create a full dataset copy with degree=1 for all base questions."""
+    input_path, output_path = cfg["input_path"], cfg["initial_output_path"]
+    print(f"🧩 Generating initial dataset from {input_path}")
+    lines = [json.loads(l) for l in open(input_path, encoding="utf-8")]
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as fout:
+        for row in lines:
+            record = {
+                "orig_id": row["id"],
+                "degree": 1,
+                "question": row["question"],
+                "answer": row["answer"],
+            }
+            fout.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+    print(f"✅ Initial dataset saved → {output_path}")
+    return output_path
 
 # --------------------------------------------
 # 🧠 Paraphrasing function
@@ -79,7 +103,7 @@ def select_progressive_paraphrases(question, candidates, embedder):
     return selected[:5]
 
 # --------------------------------------------
-# 🚀 Main function
+# 🚀 Main paraphrase generation
 # --------------------------------------------
 def generate_paraphrases():
     cfg = CONFIG
@@ -108,7 +132,7 @@ def generate_paraphrases():
         device = cfg["device_preference"]
     print(f"💻 Using device: {device.upper()}")
 
-    # Load llm
+    # Load models
     print(f"🧠 Loading paraphrase model: {cfg['model_name']}")
     tokenizer = AutoTokenizer.from_pretrained(cfg["model_name"])
     model = AutoModelForSeq2SeqLM.from_pretrained(cfg["model_name"]).to(device)
@@ -117,7 +141,6 @@ def generate_paraphrases():
     print(f"🔎 Loading embedding model: {cfg['embedding_model']}")
     embedder = SentenceTransformer(cfg["embedding_model"], device=device)
 
-    # Paraphrase loop
     # Paraphrase loop
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with open(output_path, "w", encoding="utf-8") as fout:
@@ -153,5 +176,9 @@ def generate_paraphrases():
     return output_path
 
 # --------------------------------------------
+# 🏁 Entry point
+# --------------------------------------------
 if __name__ == "__main__":
+    cfg = CONFIG
+    generate_initial_dataset(cfg)
     generate_paraphrases()

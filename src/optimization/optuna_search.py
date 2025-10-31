@@ -5,9 +5,11 @@ import json
 
 # --- Réglages latence (inchangés par rapport à la version qui marche) ---
 LATENCY_MODE = "penalized"   # "penalized" | "budget"
-ALPHA_PER_SEC = 0.05         # pénalité par seconde si "penalized"
+ALPHA_PER_SEC = 0.00        # pénalité par seconde si "penalized"
 LATENCY_BUDGET_MS = 1500     # budget si "budget" (ms)
 LATENCY_STRATEGY = "mean"    # "mean" | "mean_plus_2std"
+RETRIEVER_OPT_MODE = True
+SEEN_EFFECTIVE_CONFIGS = set()
 
 # --- Nouveaux espaces de recherche (à adapter à ton setup) ---
 EMBEDDING_CHOICES = [
@@ -40,12 +42,35 @@ def _compute_latency_ms(summary: dict) -> float:
     return total_sec * 1000.0  # ms
 
 def _pick_quality(metrics: dict) -> float:
-    # Priorité: faithfulness > exact_match > semantic_similarity > lexical_overlap
+    """
+    Si des métriques de retrieval sont présentes (retriever_quality dict),
+    on calcule un score combiné. Sinon on retombe sur les métriques génération.
+    """
+    rq = metrics.get("retriever_quality")
+    if isinstance(rq, dict):
+        def g(key, default=0.0):
+            v = rq.get(key, default)
+            return float(v) if isinstance(v, (int, float)) else 0.0
+
+        # pondérations simples et robustes
+        ndcg      = g("nDCG")
+        recall    = max(g("recall@5"), g("recall"))
+        precision = max(g("precision@5"), g("precision"))
+
+        # 👇 formule objective pour le retrieval-only
+        # - nDCG capte le ranking (principal)
+        # - recall@k capte la couverture
+        # - precision@k évite d'inonder de faux positifs
+        return 0.7 * ndcg + 0.3 * recall
+
+    # --- fallback génération (ton comportement actuel) ---
     for k in ["faithfulness", "exact_match", "semantic_similarity", "lexical_overlap", "semantic_sim"]:
         v = metrics.get(k)
         if v is not None:
             return float(v)
-    raise ValueError("⚠️ Aucune métrique utilisable trouvée (faithfulness/exact_match/semantic_similarity/lexical_overlap).")
+
+    raise ValueError("⚠️ Aucune métrique utilisable trouvée (retrieval ou génération).")
+
 
 def run_pipeline_with_overrides(overrides):
     cmd = ["python", "-m", "src.main"] + overrides
@@ -75,15 +100,26 @@ def run_pipeline_with_overrides(overrides):
     return final
 
 def objective(trial):
-    # === Paramètres existants ===
     retrieval_type = trial.suggest_categorical(
         "modules.run_rag.retrieval_type", ["dense", "hybrid", "sparse"]
     )
+
     top_k = trial.suggest_categorical(
         "modules.run_rag.top_k", [2, 4, 8, 16, 24]
     )
 
-    # === Nouveaux paramètres ===
+    # ✅ On définit toujours le même espace pour éviter le "dynamic value space"
+    top_k_rerank = trial.suggest_categorical(
+        "modules.run_rag.top_k_rerank", [2, 4, 8, 16, 24, None]
+    )
+
+    # ✅ On invalide ensuite les valeurs incohérentes selon top_k
+    if top_k_rerank is not None and top_k_rerank > top_k:
+        # soit on corrige :
+        top_k_rerank = top_k
+        # soit on prune (si tu veux que le trial soit ignoré) :
+        # raise optuna.TrialPruned("Invalid top_k_rerank > top_k")
+
     embedding_model = trial.suggest_categorical(
         "embed.embedding_model", EMBEDDING_CHOICES
     )
@@ -93,34 +129,58 @@ def objective(trial):
     use_rerank = trial.suggest_categorical(
         "modules.run_rag.use_rerank", [True, False]
     )
-    alpha = trial.suggest_float(
-        "modules.run_rag.alpha", 0.3, 0.8
+    if use_rerank and top_k_rerank is None:
+        raise optuna.TrialPruned("Invalid combination: use_rerank=True but top_k_rerank=None")
+    if top_k_rerank is not None and top_k_rerank > top_k:
+        top_k_rerank = top_k
+
+    alpha = None
+    if retrieval_type == "hybrid":
+        alpha = trial.suggest_float("modules.run_rag.alpha", 0.3, 0.8)
+
+    # --- clé effective pour déduplication ---
+    key = (
+        retrieval_type,
+        top_k,
+        top_k_rerank,
+        embedding_model,
+        chunk_size,
+        use_rerank,
+        alpha if retrieval_type == "hybrid" else None,
     )
+    if key in SEEN_EFFECTIVE_CONFIGS:
+        raise optuna.TrialPruned("Duplicate effective configuration.")
+    SEEN_EFFECTIVE_CONFIGS.add(key)
 
     overrides = [
-        # existants
         f"modules.run_rag.retrieval_type={retrieval_type}",
         f"modules.run_rag.top_k={top_k}",
-
-        # nouveaux
+        f"rerank.top_k={top_k_rerank}",
         f"embed.embedding_model={embedding_model}",
         f"embed.chunk_size={chunk_size}",
         f"modules.run_rag.use_rerank={use_rerank}",
-        f"modules.run_rag.alpha={alpha}",
     ]
+    if retrieval_type == "hybrid":
+        overrides.append(f"modules.run_rag.alpha={alpha}")
+    if RETRIEVER_OPT_MODE:
+        overrides.append("modules.run_rag.do_generation=false")
 
     return run_pipeline_with_overrides(overrides)
+
+
+
+
 
 if __name__ == "__main__":
     # Étude Optuna persistée en SQLite
     study = optuna.create_study(
-        study_name="rag_param_search5",
+        study_name="rag_param_retrieval_only_augmented_question_without_latency_penalty_remove_useless_alphav2",
         storage="sqlite:///optuna_study.db",
         direction="maximize",
         load_if_exists=True,
     )
     # Augmente un peu les essais pour explorer les nouvelles dimensions
-    study.optimize(objective, n_trials=20)
+    study.optimize(objective, n_trials=60)
 
     print("\n✅ Optimisation terminée !")
     print("🏆 Meilleurs paramètres :", study.best_params)

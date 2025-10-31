@@ -29,7 +29,9 @@ class RagPipeline:
         embedding_model = None,
         model_meta=None,
         model_cfg=None,
-        latency_cfg = None
+        do_generation: bool = True,
+        latency_cfg = None,
+        top_k_rerank : int=5
     ):
         self.top_k = top_k
         self.retrieval_type = retrieval_type
@@ -39,6 +41,8 @@ class RagPipeline:
         self.model_meta = model_meta
         self.latency_cfg = latency_cfg or {}
         self.latency_meter = LatencyMeter() if self.latency_cfg.get("enabled", True) else None
+        self.do_generation = do_generation
+        self.top_k_rerank = top_k_rerank
 
         # Initialize the retrieval component based on the selected retrieval strategy:
         # - dense: FAISS vector-based retrieval
@@ -47,7 +51,7 @@ class RagPipeline:
         if retrieval_type == "dense":
             self.retriever = FaissRetriever(index_dir=index_dir, parquet_path=parquet_path, model_name=embedding_model)
         elif retrieval_type == "sparse":
-            self.retriever = BM25Retriever(self.docs_path)
+            self.retriever = BM25Retriever(index_dir=index_dir)
         elif retrieval_type == "hybrid":
             self.retriever = HybridRetriever(alpha=alpha, top_k=top_k, model_name=embedding_model,index_dir=index_dir, docs_path =self.docs_path )
         else:
@@ -56,7 +60,9 @@ class RagPipeline:
         # Initialize the reranker if enabled; otherwise skip.
         # The reranker refines retrieval results before generation.
         self.reranker = ReRanker() if use_rerank else None
-        self.generator = RagGenerator(self.model_meta, model_cfg=model_cfg )
+        self.generator = None
+        if self.do_generation:
+            self.generator = RagGenerator(self.model_meta, model_cfg=model_cfg)
 
     def run(self, query: str) -> dict:
         """
@@ -83,7 +89,7 @@ class RagPipeline:
         if self.reranker:
             if self.latency_meter:
                 self.latency_meter.start("rerank")
-            results = self.reranker.rerank(query, results, top_k=self.top_k)
+            results = self.reranker.rerank(query, results, top_k=self.top_k_rerank)
             if self.latency_meter:
                 self.latency_meter.stop("rerank")
 
@@ -91,18 +97,19 @@ class RagPipeline:
         # Measure latency for the generation step if enabled.
         contexts = [r["text"] for r in results]
         doc_ids = [r["doc_id"] for r in results]
-        if self.latency_meter:
-            self.latency_meter.start("generation")
-        answer = self.generator.generate(query, contexts)
-        if self.latency_meter:
-            self.latency_meter.stop("generation")
 
-        # Reset generator state if supported (useful for session-based models).
-        if hasattr(self.generator, "reset"):
-            self.generator.reset()
+        answer = None
+        if self.do_generation:
+            if self.latency_meter:
+                self.latency_meter.start("generation")
+            answer = self.generator.generate(query, contexts)
+            if self.latency_meter:
+                self.latency_meter.stop("generation")
+            # Reset generator state if supported (useful for session-based models).
+            if hasattr(self.generator, "reset"):
+                self.generator.reset()
 
         return {"query": query, "pred": answer, "contexts": contexts, "doc_ids": doc_ids}
-
     def close(self):
         """
         Cleanly release model resources (GPU memory, file handles, etc.) for generator and retriever.

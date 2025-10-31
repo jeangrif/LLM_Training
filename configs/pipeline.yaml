@@ -1,4 +1,5 @@
 # configs/pipeline.yaml
+output_dir: outputs/default
 defaults:
   - model: llama_cpp
   - llm: settings
@@ -29,19 +30,21 @@ modules:
 
   run_rag:
     _target_: src.stages.rag_runner.RagRunner
-    input_path: data/eval/augmented_questions.jsonl
+    input_path: data/eval/initial_questions.jsonl
     output_path: outputs/results_rag.jsonl
     retrieval_type: hybrid  # dense, hybrid or sparse
     use_rerank: true  # true or false
     top_k: 4
+    top_k_rerank: ${rerank.top_k}
     alpha: 0.6
-    max_questions: 1
+    max_questions: 300
     index_dir: null
     embedding_model: ${embed.embedding_model}
     model_cfg: ${model}
     latency_cfg: ${latency}
     save_results: false
     propagate_keys: [index_dir]
+    do_generation: false
 
   evaluate:
     _target_: src.stages.evaluator.Evaluator
@@ -51,4 +54,5 @@ modules:
     embedding_model: ${embed.embedding_model}
     save_metrics: true
     propagate_keys: [qrels_path]
+    do_generation: ${modules.run_rag.do_generation}
 

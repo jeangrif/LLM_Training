@@ -23,6 +23,7 @@ class RagRunner:
         use_rerank: bool = False,
         top_k: int = 3,
         alpha: float = 0.5,
+        top_k_rerank: int =5,
         max_questions: int = None,
         index_dir: str = None,
         embedding_model = None,
@@ -30,6 +31,7 @@ class RagRunner:
         output_filename: str = "results_rag.jsonl",
         model_cfg=None,
         latency_cfg=None,
+        do_generation: bool = True,
     ):
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -45,6 +47,8 @@ class RagRunner:
         self.run_dir = Path(HydraConfig.get().run.dir)
         self.model_cfg = model_cfg
         self.latency_cfg = latency_cfg
+        self.do_generation = do_generation
+        self.top_k_rerank = top_k_rerank
 
     # ------------------------------------------------------------
     def run(self, previous=None, **kwargs):
@@ -70,9 +74,11 @@ class RagRunner:
             alpha=self.alpha,
             index_dir=self.index_dir,
             embedding_model=self.embedding_model,
+            do_generation=self.do_generation,
+            top_k_rerank = self.top_k_rerank
         )
         data = load_jsonl(self.input_path)
-        random.seed(42)
+
         # Optionally limit the number of processed questions for faster experimentation or evaluation.
         if self.max_questions:
             data = random.sample(data, min(self.max_questions, len(data)))
@@ -87,7 +93,9 @@ class RagRunner:
             embedding_model = self.embedding_model,
             model_meta=previous.get("check_models", {}).get("metadata", None),
             model_cfg=self.model_cfg,
-            latency_cfg = self.latency_cfg
+            latency_cfg = self.latency_cfg,
+            do_generation=self.do_generation,
+            top_k_rerank = self.top_k_rerank
         )
 
         results = []

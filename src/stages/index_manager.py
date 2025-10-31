@@ -7,6 +7,7 @@ from src.components.embed.embeddings import Embedder
 from src.components.embed.faiss_index import FaissIndexBuilder
 from src.utils.setting import RagSettings
 from src.components.embed.qrels_builder import QrelsBuilder
+from src.components.embed.bm25_index_builder import BM25IndexBuilder
 
 
 class IndexManager:
@@ -43,6 +44,7 @@ class IndexManager:
         self.faiss_path = self.index_dir / "faiss.index"
         self.docs_path = self.index_dir / "docs.jsonl"
         self.meta_path = self.index_dir / "metadata.json"
+        self.bm25_path = self.index_dir / "bm25_index.npz"
 
         self.auto_build_qrels = bool(auto_build_qrels)
         self.qrels_mode = qrels_mode
@@ -52,15 +54,39 @@ class IndexManager:
             overlap=self.chunk_overlap,
             text_field=self.embed_cfg.text_field
         )
+        self.bm25_builder = BM25IndexBuilder(stopwords="en", stemmer_lang="english")
         self.embedder = Embedder(
             model_name=self.embedding_model,
             batch_size=self.embed_cfg.embedding_batch_size
         )
         self.index_builder = FaissIndexBuilder()
 
+
     # ---------------------------------------------------------
     def run(self, **kwargs):
-        if self._is_ready():
+        faiss_ready = all(p.exists() for p in [self.faiss_path, self.docs_path, self.meta_path])
+        bm25_ready = self.bm25_path.exists()
+
+        # 1️⃣ Cas : FAISS déjà construit, BM25 manquant → ne construire que BM25
+        if faiss_ready and not bm25_ready:
+            print(f"⚙️ Found existing FAISS index but missing BM25 → building BM25 only.")
+            self.bm25_builder.build_index(
+                docs_path=self.docs_path,
+                out_dir=self.index_dir,
+            )
+            qrels_path = None
+            if self.auto_build_qrels:
+                qrels_path = self._ensure_qrels()
+            print("✅ BM25 index built successfully.")
+            return {
+                "status": "bm25_built",
+                "index_dir": str(self.index_dir),
+                "docs_path": str(self.docs_path),
+                "qrels_path": str(qrels_path) if qrels_path else None,
+            }
+
+        # 2️⃣ Cas : tout est prêt → utiliser le cache complet
+        if faiss_ready and bm25_ready:
             print(f"✅ Using cached index → {self.index_dir}")
             qrels_path = None
             if self.auto_build_qrels:
@@ -72,16 +98,18 @@ class IndexManager:
                 "qrels_path": str(qrels_path) if qrels_path else None,
             }
 
-        print(f"⚙️ Building FAISS index for {self.model_name} (chunk={self.chunk_size}, overlap={self.chunk_overlap})")
+        # 3️⃣ Cas : un fichier critique manquant → rebuild complet
+        print(
+            f"⚙️ Building full index for {self.model_name} (chunk={self.chunk_size}, overlap={self.chunk_overlap})...")
         index, docs = self._build_from_parquet(self.parquet_path)
-        print(f"✅ New index created → {self.index_dir}")
+        print(f"✅ Full FAISS + BM25 index created → {self.index_dir}")
 
         qrels_path = None
         if self.auto_build_qrels:
             qrels_path = self._ensure_qrels()
 
         return {
-            "status": "built",
+            "status": "full_built",
             "index_dir": str(self.index_dir),
             "docs_path": str(self.docs_path),
             "qrels_path": str(qrels_path) if qrels_path else None,
@@ -93,7 +121,7 @@ class IndexManager:
         """
         Check whether the FAISS index and all required files already exist.
         """
-        return all(p.exists() for p in [self.faiss_path, self.docs_path, self.meta_path])
+        return all(p.exists() for p in [self.faiss_path, self.docs_path, self.meta_path, self.bm25_path])
 
     def _load_index(self):
         """
@@ -128,6 +156,7 @@ class IndexManager:
             out_dir=self.index_dir,
         )
 
+
         # 2️⃣ Embeddings Generation
         emb_path = self.embedder.encode_chunks(
             chunks_path=chunks_path,
@@ -139,6 +168,10 @@ class IndexManager:
             embeddings_path=emb_path,
             chunks_path=chunks_path,
             index_dir=self.index_dir,
+        )
+        self.bm25_builder.build_index(
+            docs_path=docs_path,
+            out_dir=self.index_dir,
         )
 
         # Remove temporary intermediate files used during index creation.

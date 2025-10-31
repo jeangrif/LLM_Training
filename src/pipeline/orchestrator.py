@@ -73,9 +73,7 @@ class ExperimentRunner:
                 module_cfg.pop("propagate_keys", None)
 
 
-            for key in ["index_dir", "qrels_path"]:
-                val = module_cfg.get(key, None)
-                print(f"   {key}: {val}")
+        
             # Dynamically instantiate the module defined in the YAML config using Hydra.
             module = instantiate(module_cfg)
 

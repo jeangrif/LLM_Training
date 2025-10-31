@@ -25,6 +25,7 @@ class Evaluator:
         save_metrics: bool = True,
         qrels_path: Path = None,
         output_filename: str = "eval_metrics.jsonl",
+        do_generation: bool = True,
     ):
         """
         Args:
@@ -38,6 +39,7 @@ class Evaluator:
         self.results_path = Path(results_path)
         self.save_metrics = save_metrics
         self.output_path = Path(HydraConfig.get().run.dir) / output_filename
+        self.do_generation = do_generation
 
         self.qrels_path = Path(qrels_path) if qrels_path else None
 
@@ -52,7 +54,12 @@ class Evaluator:
     # Dynamically import and initialize metric classes from their module paths.
     def _load_metrics(self, metrics_cfg: dict):
 
+        if not getattr(self, "do_generation", True):
 
+            metrics_cfg = {
+                k: v for k, v in metrics_cfg.items()
+                if "retriever" in k.lower() or "retrieval" in k.lower()
+            }
         metrics = {}
         for name, path in metrics_cfg.items():
             module_name, class_name = path.rsplit(".", 1)
