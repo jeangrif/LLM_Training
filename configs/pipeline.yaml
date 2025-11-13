@@ -7,6 +7,7 @@ defaults:
   - rerank: settings
   - eval/metrics
   - latency: latency
+  - guardrails: settings
   - _self_
 
 stages:
@@ -34,9 +35,9 @@ modules:
     output_path: outputs/results_rag.jsonl
     retrieval_type: hybrid  # dense, hybrid or sparse
     use_rerank: true  # true or false
-    top_k: 4
+    top_k: 128
     top_k_rerank: ${rerank.top_k}
-    alpha: 0.6
+    alpha: 1.00
     max_questions: 300
     index_dir: null
     embedding_model: ${embed.embedding_model}
@@ -44,7 +45,8 @@ modules:
     latency_cfg: ${latency}
     save_results: false
     propagate_keys: [index_dir]
-    do_generation: false
+    do_generation: true
+    guardrails_cfg: ${guardrails.retrieval_guardrails}
 
   evaluate:
     _target_: src.stages.evaluator.Evaluator

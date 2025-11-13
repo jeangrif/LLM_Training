@@ -43,33 +43,20 @@ def _compute_latency_ms(summary: dict) -> float:
 
 def _pick_quality(metrics: dict) -> float:
     """
-    Si des métriques de retrieval sont présentes (retriever_quality dict),
-    on calcule un score combiné. Sinon on retombe sur les métriques génération.
+    Sélectionne la métrique principale à optimiser (ici F1-score).
     """
     rq = metrics.get("retriever_quality")
     if isinstance(rq, dict):
-        def g(key, default=0.0):
-            v = rq.get(key, default)
-            return float(v) if isinstance(v, (int, float)) else 0.0
+        for key in ["f1", "F1", "f1_macro", "f1_weighted"]:
+            if key in rq:
+                return float(rq[key])
 
-        # pondérations simples et robustes
-        ndcg      = g("nDCG")
-        recall    = max(g("recall@5"), g("recall"))
-        precision = max(g("precision@5"), g("precision"))
+    for key in ["f1", "F1", "f1_macro", "f1_weighted"]:
+        if key in metrics:
+            return float(metrics[key])
 
-        # 👇 formule objective pour le retrieval-only
-        # - nDCG capte le ranking (principal)
-        # - recall@k capte la couverture
-        # - precision@k évite d'inonder de faux positifs
-        return 0.7 * ndcg + 0.3 * recall
+    raise ValueError("⚠️ Aucun F1-score trouvé dans les métriques d’évaluation.")
 
-    # --- fallback génération (ton comportement actuel) ---
-    for k in ["faithfulness", "exact_match", "semantic_similarity", "lexical_overlap", "semantic_sim"]:
-        v = metrics.get(k)
-        if v is not None:
-            return float(v)
-
-    raise ValueError("⚠️ Aucune métrique utilisable trouvée (retrieval ou génération).")
 
 
 def run_pipeline_with_overrides(overrides):
@@ -100,12 +87,31 @@ def run_pipeline_with_overrides(overrides):
     return final
 
 def objective(trial):
+    def suggest_guardrails(prefix: str, min_abs_range, good_abs_range, margin_range):
+        min_abs = trial.suggest_float(f"{prefix}.min_abs", *min_abs_range)
+        good_abs = trial.suggest_float(f"{prefix}.good_abs", *good_abs_range)
+        min_margin_iqr = trial.suggest_float(f"{prefix}.min_margin_iqr", *margin_range)
+        soft = trial.suggest_categorical(f"{prefix}.soft", [True, False])
+        if good_abs <= min_abs:
+            good_abs = min_abs + 1e-6
+        return min_abs, good_abs, min_margin_iqr, soft
+
+    dense_min_abs, dense_good_abs, dense_mi, dense_soft = suggest_guardrails(
+        "guardrails.retrieval_guardrails.dense", (0.05, 0.5), (0.1, 1.0), (0.0, 2.0)
+    )
+    sparse_min_abs, sparse_good_abs, sparse_mi, sparse_soft = suggest_guardrails(
+        "guardrails.retrieval_guardrails.sparse", (0.0, 20.0), (1.0, 40.0), (0.0, 2.0)
+    )
+    hyb_min_abs, hyb_good_abs, hyb_mi, hyb_soft = suggest_guardrails(
+        "guardrails.retrieval_guardrails.hybrid", (0.05, 0.5), (0.1, 1.0), (0.0, 2.0)
+    )
+
     retrieval_type = trial.suggest_categorical(
         "modules.run_rag.retrieval_type", ["dense", "hybrid", "sparse"]
     )
 
     top_k = trial.suggest_categorical(
-        "modules.run_rag.top_k", [2, 4, 8, 16, 24]
+        "modules.run_rag.top_k", [24,32,64,128]
     )
 
     # ✅ On définit toujours le même espace pour éviter le "dynamic value space"
@@ -160,6 +166,20 @@ def objective(trial):
         f"embed.chunk_size={chunk_size}",
         f"modules.run_rag.use_rerank={use_rerank}",
     ]
+    overrides.extend([
+        f"guardrails.retrieval_guardrails.dense.min_abs={dense_min_abs}",
+        f"guardrails.retrieval_guardrails.dense.good_abs={dense_good_abs}",
+        f"guardrails.retrieval_guardrails.dense.min_margin_iqr={dense_mi}",
+        f"guardrails.retrieval_guardrails.dense.soft={dense_soft}",
+        f"guardrails.retrieval_guardrails.sparse.min_abs={sparse_min_abs}",
+        f"guardrails.retrieval_guardrails.sparse.good_abs={sparse_good_abs}",
+        f"guardrails.retrieval_guardrails.sparse.min_margin_iqr={sparse_mi}",
+        f"guardrails.retrieval_guardrails.sparse.soft={sparse_soft}",
+        f"guardrails.retrieval_guardrails.hybrid.min_abs={hyb_min_abs}",
+        f"guardrails.retrieval_guardrails.hybrid.good_abs={hyb_good_abs}",
+        f"guardrails.retrieval_guardrails.hybrid.min_margin_iqr={hyb_mi}",
+        f"guardrails.retrieval_guardrails.hybrid.soft={hyb_soft}",
+    ])
     if retrieval_type == "hybrid":
         overrides.append(f"modules.run_rag.alpha={alpha}")
     if RETRIEVER_OPT_MODE:
@@ -174,7 +194,7 @@ def objective(trial):
 if __name__ == "__main__":
     # Étude Optuna persistée en SQLite
     study = optuna.create_study(
-        study_name="rag_param_retrieval_only_augmented_question_without_latency_penalty_remove_useless_alphav2",
+        study_name="rag_param_f1_guardrails_optimization_bigger_top_k",
         storage="sqlite:///optuna_study.db",
         direction="maximize",
         load_if_exists=True,

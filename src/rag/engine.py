@@ -5,9 +5,10 @@ from src.components.retriever.dense_faiss import FaissRetriever
 from src.components.retriever.sparse_retriever import BM25Retriever
 from src.components.retriever.hybrid_retriever import HybridRetriever
 from src.components.reranker import ReRanker
-from src.components.generator import RagGenerator
+from src.components.generator.generator import RagGenerator
 from src.eval.performance.latency import LatencyMeter
 from hydra.core.hydra_config import HydraConfig
+from src.utils.scoring import attach_unified_scores
 import json
 
 class RagPipeline:
@@ -31,7 +32,9 @@ class RagPipeline:
         model_cfg=None,
         do_generation: bool = True,
         latency_cfg = None,
-        top_k_rerank : int=5
+        top_k_rerank : int=5,
+        stateful: bool = False,
+        guardrails_cfg=None
     ):
         self.top_k = top_k
         self.retrieval_type = retrieval_type
@@ -43,11 +46,14 @@ class RagPipeline:
         self.latency_meter = LatencyMeter() if self.latency_cfg.get("enabled", True) else None
         self.do_generation = do_generation
         self.top_k_rerank = top_k_rerank
+        self.stateful = stateful
+        self.model_cfg = model_cfg
+        self.guardrails_cfg = guardrails_cfg
 
         # Initialize the retrieval component based on the selected retrieval strategy:
         # - dense: FAISS vector-based retrieval
         # - sparse: BM25 lexical retrieval
-        # - hybrid: combined dense + sparse scoring with weighting factor alpha
+        # - hybrid: combined dense + sparse guardrails with weighting factor alpha
         if retrieval_type == "dense":
             self.retriever = FaissRetriever(index_dir=index_dir, parquet_path=parquet_path, model_name=embedding_model)
         elif retrieval_type == "sparse":
@@ -62,7 +68,7 @@ class RagPipeline:
         self.reranker = ReRanker() if use_rerank else None
         self.generator = None
         if self.do_generation:
-            self.generator = RagGenerator(self.model_meta, model_cfg=model_cfg)
+            self.generator = RagGenerator(self.model_meta, model_cfg=model_cfg, stateful=stateful)
 
     def run(self, query: str) -> dict:
         """
@@ -97,19 +103,35 @@ class RagPipeline:
         # Measure latency for the generation step if enabled.
         contexts = [r["text"] for r in results]
         doc_ids = [r["doc_id"] for r in results]
+        scores = attach_unified_scores(results, self.retrieval_type, self.alpha, guardrails_cfg=self.guardrails_cfg)
+        min_score = float(self.model_cfg.get("min_score", 0.0)) if hasattr(self, "model_cfg") else 0.0
+
+        triplets = [(d, c, s) for d, c, s in zip(doc_ids, contexts, scores) if s >= min_score]
+
+        triplets.sort(key=lambda t: t[2], reverse=True)
+
+        # 4) Construire les docs attendus par PromptBuilder.build(query, docs)
+        docs_for_gen = [
+            {"doc_id": d, "text": c, "score": float(s)}
+            for d, c, s in triplets
+        ]
+
+
 
         answer = None
         if self.do_generation:
             if self.latency_meter:
                 self.latency_meter.start("generation")
-            answer = self.generator.generate(query, contexts)
+            answer = self.generator.generate(query, docs_for_gen)
             if self.latency_meter:
                 self.latency_meter.stop("generation")
             # Reset generator state if supported (useful for session-based models).
-            if hasattr(self.generator, "reset"):
+
+            if not self.stateful and hasattr(self.generator, "reset"):
                 self.generator.reset()
 
-        return {"query": query, "pred": answer, "contexts": contexts, "doc_ids": doc_ids}
+        return {"query": query, "pred": answer, "contexts": [d["text"] for d in docs_for_gen],
+                    "doc_ids": [d["doc_id"] for d in docs_for_gen], }
     def close(self):
         """
         Cleanly release model resources (GPU memory, file handles, etc.) for generator and retriever.
@@ -121,6 +143,10 @@ class RagPipeline:
                 self.retriever.close()
             except Exception:
                 pass
+
+    def reset_context(self):
+        if hasattr(self.generator, "reset"):
+            self.generator.reset()
 
     def summarize_latency(self, output_dir: Path = None):
         """

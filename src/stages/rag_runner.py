@@ -32,6 +32,7 @@ class RagRunner:
         model_cfg=None,
         latency_cfg=None,
         do_generation: bool = True,
+        guardrails_cfg = None
     ):
         self.input_path = Path(input_path)
         self.output_path = Path(output_path)
@@ -49,6 +50,7 @@ class RagRunner:
         self.latency_cfg = latency_cfg
         self.do_generation = do_generation
         self.top_k_rerank = top_k_rerank
+        self.guardrails_cfg = guardrails_cfg
 
     # ------------------------------------------------------------
     def run(self, previous=None, **kwargs):
@@ -95,7 +97,8 @@ class RagRunner:
             model_cfg=self.model_cfg,
             latency_cfg = self.latency_cfg,
             do_generation=self.do_generation,
-            top_k_rerank = self.top_k_rerank
+            top_k_rerank = self.top_k_rerank,
+            guardrails_cfg = self.guardrails_cfg
         )
 
         results = []

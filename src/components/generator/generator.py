@@ -1,6 +1,6 @@
 # src/rag/rag_runner.py
 from src.components.llm.llama_cpp import LlamaCppProvider
-
+from src.components.generator.prompt_builder import PromptBuilder
 
 class RagGenerator:
     """
@@ -10,8 +10,14 @@ class RagGenerator:
 
     # Initialize the generator with a local model provider.
     # Uses model metadata and configuration to load the appropriate LLM instance.
-    def __init__(self, model_meta, model_cfg):
+    def __init__(self, model_meta, model_cfg, stateful=False):
         self.model = LlamaCppProvider(model_meta, model_cfg=model_cfg)
+        self.stateful = stateful
+        self.prompt_builder = PromptBuilder(
+            mode="chat" if self.stateful else "instruct",
+            max_contexts=model_cfg.get("max_contexts", 3),
+            min_score=model_cfg.get("min_score", 0.0)
+        )
 
     def build_prompt(self, query: str, contexts: list[str]) -> str:
         """
@@ -33,22 +39,20 @@ class RagGenerator:
         )
         return prompt
 
-    def generate(self, query: str, contexts: list[str]) -> str:
-        """
-        Generate a complete answer from the provided query and context.
+    def generate(self, query: str, docs: list[dict]) -> str:
+        if self.stateful:
+            # ⚠️ nouveau chemin propre : pas de contexte dans l'historique
+            system_ctx, user_msg = self.prompt_builder.build_ephemeral(query, docs)
+            return self.model.chat_ephemeral(user_msg, system_ctx)
+        else:
+            # chemin existant inchangé
+            prompt = self.prompt_builder.build(query, docs)
+            return self.model.generate(prompt)
 
-        Args:
-            query (str): Input question.
-            contexts (list[str]): Retrieved or reranked context passages.
-
-        Returns:
-            str: Model-generated answer text.
-        """
+    def reset(self):
         if hasattr(self.model, "reset"):
-            self.model.reset()
-        prompt = self.build_prompt(query, contexts)
-        return self.model.generate(prompt)
 
+            self.model.reset()
     def close(self):
         """
         Cleanly release model resources (e.g., GPU memory or file handles).

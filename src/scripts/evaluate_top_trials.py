@@ -5,7 +5,7 @@ import pandas as pd
 from pathlib import Path
 from datetime import datetime
 
-STUDY_NAME = "rag_param_retrieval_only_augmented_question_without_latency_penalty_remove_useless_alphav2"
+STUDY_NAME = "rag_param_retrieval_only_initial_question_precision_penalized"
 STORAGE = "sqlite:///optuna_study.db"
 N_TOP = 5
 MAX_QUESTIONS = 10000

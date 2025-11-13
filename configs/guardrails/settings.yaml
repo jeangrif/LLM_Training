@@ -1,0 +1,18 @@
+retrieval_guardrails:
+  dense:
+    min_abs: 0.18650706650275828
+    good_abs: 0.8794971036460255
+    min_margin_iqr: 0.3931624172719937
+    soft: true
+
+  sparse:
+    min_abs: 16.37473421999077
+    good_abs: 2.316102069035857
+    min_margin_iqr: 1.0666468058443141
+    soft: true
+
+  hybrid:
+    min_abs: 0.13667849374124727
+    good_abs: 0.5881580852833648
+    min_margin_iqr: 0.6804593187863286
+    soft: false

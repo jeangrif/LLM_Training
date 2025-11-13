@@ -33,7 +33,7 @@ class ReRanker:
             list: Re-ranked list of documents with added 'rerank_score' field.
         """
 
-        # Prepare (query, document) pairs for batch scoring with the cross-encoder.
+        # Prepare (query, document) pairs for batch guardrails with the cross-encoder.
         pairs = [(query, r["text"]) for r in results]
         scores = self.model.predict(pairs)
         for r, s in zip(results, scores):
